@@ -29,6 +29,8 @@ enum class ButtonType {
     DPadLeft,
     DPadRight,
     DPadUp,
+    LeftStickPress,
+    RightStickPress,
     Unknown,
     NotApplicable,
 };

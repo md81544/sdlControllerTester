@@ -26,10 +26,11 @@ float normaliseAxis(int16_t value)
 float joystickCurve(float input, float curve = 6.f, float deadzone = 0.05f)
 {
     input = std::clamp(input, -1.f, 1.f);
-    float sign  = input < 0.f ? -1.f : 1.f;
+    float sign = input < 0.f ? -1.f : 1.f;
     float abs_x = std::abs(input);
-    if (abs_x < deadzone)
+    if (abs_x < deadzone) {
         return 0.f;
+    }
     float scaled = (abs_x - deadzone) / (1.f - deadzone); // [0, 1]
     float result = (std::exp(curve * scaled) - 1.f) / (std::exp(curve) - 1.f);
     return std::clamp(sign * result, -1.f, 1.f);
@@ -123,6 +124,10 @@ ButtonType sdlToButtonType(SDL_GamepadButton button)
             return ButtonType::DPadLeft;
         case SDL_GAMEPAD_BUTTON_DPAD_RIGHT:
             return ButtonType::DPadRight;
+        case SDL_GAMEPAD_BUTTON_LEFT_STICK:
+            return ButtonType::LeftStickPress;
+        case SDL_GAMEPAD_BUTTON_RIGHT_STICK:
+            return ButtonType::RightStickPress;
         default:
             return ButtonType::Unknown;
     }

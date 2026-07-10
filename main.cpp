@@ -16,6 +16,8 @@ struct GamepadStatus {
     float rightY { 0.f };
     float leftTrigger { 0.f };
     float rightTrigger { 0.f };
+    bool leftStickPress{ false };
+    bool rightStickPress{ false };
     bool south { false };
     bool east { false };
     bool west { false };
@@ -85,6 +87,12 @@ void collateGamepadEvents(gamepad::Gamepad& gamepad, GamepadStatus& status)
                 case gamepad::ButtonType::DPadUp:
                     status.dPadUp = true;
                     break;
+                case gamepad::ButtonType::LeftStickPress:
+                    status.leftStickPress = true;
+                    break;
+                case gamepad::ButtonType::RightStickPress:
+                    status.rightStickPress = true;
+                    break;
                 default:
             }
         }
@@ -126,6 +134,12 @@ void collateGamepadEvents(gamepad::Gamepad& gamepad, GamepadStatus& status)
                 case gamepad::ButtonType::DPadUp:
                     status.dPadUp = false;
                     break;
+                case gamepad::ButtonType::LeftStickPress:
+                    status.leftStickPress = false;
+                    break;
+                case gamepad::ButtonType::RightStickPress:
+                    status.rightStickPress = false;
+                    break;
                 default:
             }
         }
@@ -164,6 +178,10 @@ int main()
                 term.printAt(row++, 17, std::format("{:>6.3f}", status.rightX));
                 term.printAt(row, 1, "Right stick Y :");
                 term.printAt(row++, 17, std::format("{:>6.3f}", status.rightY));
+                term.printAt(row, 1, "R stick press :");
+                term.printAt(row++, 17, std::format(" {}", status.rightStickPress));
+                term.printAt(row, 1, "L stick press  :");
+                term.printAt(row++, 17, std::format(" {}", status.leftStickPress));
                 term.printAt(row, 1, "Right trigger :");
                 term.printAt(row++, 17, std::format("{:>6.3f}", status.rightTrigger));
                 term.printAt(row, 1, "Left trigger  :");
