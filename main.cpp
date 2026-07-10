@@ -15,13 +15,13 @@ int main()
             "debug.log", mgo::Log::Level::Debug, false); // false = don't append (i.e. overwrite)
         gamepad::Gamepad gamepad;
         terminal::Terminal term(false);
+        float lx = 0.f;
+        float ly = 0.f;
+        float rx = 0.f;
+        float ry = 0.f;
         for (;;) {
             term.cursorOff();
             auto evts = gamepad.getEvents();
-            float lx = 0.f;
-            float ly = 0.f;
-            float rx = 0.f;
-            float ry = 0.f;
             if (!gamepad.isGamePadAttached()) {
                 term.printAt(1, 1, "Please attach a gamepad!");
             } else {
