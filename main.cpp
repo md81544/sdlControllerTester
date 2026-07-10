@@ -3,47 +3,199 @@
 #include "log.h"
 #include "terminal.h"
 #include <chrono>
+#include <cstddef>
 #include <exception>
 #include <format>
 #include <iostream>
 #include <thread>
 
+struct GamepadStatus {
+    float leftX { 0.f };
+    float leftY { 0.f };
+    float rightX { 0.f };
+    float rightY { 0.f };
+    float leftTrigger { 0.f };
+    float rightTrigger { 0.f };
+    bool south { false };
+    bool east { false };
+    bool west { false };
+    bool north { false };
+    bool start { false };
+    bool back { false };
+    bool leftShoulder { false };
+    bool rightShoulder { false };
+    bool dPadDown { false };
+    bool dPadLeft { false };
+    bool dPadRight { false };
+    bool dPadUp { false };
+};
+
+// Consume all gamepad events since last call and populate status
+// as a snapshot of current state (doing this way may miss a button
+// press and subsequent release within the time window of a frame as
+// the release will overwrite the press status, but it's fine for this
+// test.
+void collateGamepadEvents(gamepad::Gamepad& gamepad, GamepadStatus& status)
+{
+    auto evts = gamepad.getEvents();
+    for (const auto& e : evts) {
+        if (e.eventType == gamepad::EventType::Analogue) {
+            status.leftX = e.analogue.leftX;
+            status.leftY = e.analogue.leftY;
+            status.rightX = e.analogue.rightX;
+            status.rightY = e.analogue.rightY;
+            status.rightTrigger = e.analogue.rightTrigger;
+            status.leftTrigger = e.analogue.leftTrigger;
+        }
+        if (e.eventType == gamepad::EventType::ButtonPressed) {
+            switch (e.buttonType) {
+                case gamepad::ButtonType::South:
+                    status.south = true;
+                    break;
+                case gamepad::ButtonType::North:
+                    status.north = true;
+                    break;
+                case gamepad::ButtonType::East:
+                    status.east = true;
+                    break;
+                case gamepad::ButtonType::West:
+                    status.west = true;
+                    break;
+                case gamepad::ButtonType::Start:
+                    status.start = true;
+                    break;
+                case gamepad::ButtonType::Back:
+                    status.back = true;
+                    break;
+                case gamepad::ButtonType::LeftShoulder:
+                    status.leftShoulder = true;
+                    break;
+                case gamepad::ButtonType::RightShoulder:
+                    status.rightShoulder = true;
+                    break;
+                case gamepad::ButtonType::DPadDown:
+                    status.dPadDown = true;
+                    break;
+                case gamepad::ButtonType::DPadLeft:
+                    status.dPadLeft = true;
+                    break;
+                case gamepad::ButtonType::DPadRight:
+                    status.dPadRight = true;
+                    break;
+                case gamepad::ButtonType::DPadUp:
+                    status.dPadUp = true;
+                    break;
+                default:
+            }
+        }
+        if (e.eventType == gamepad::EventType::ButtonReleased) {
+            switch (e.buttonType) {
+                case gamepad::ButtonType::South:
+                    status.south = false;
+                    break;
+                case gamepad::ButtonType::North:
+                    status.north = false;
+                    break;
+                case gamepad::ButtonType::East:
+                    status.east = false;
+                    break;
+                case gamepad::ButtonType::West:
+                    status.west = false;
+                    break;
+                case gamepad::ButtonType::Start:
+                    status.start = false;
+                    break;
+                case gamepad::ButtonType::Back:
+                    status.back = false;
+                    break;
+                case gamepad::ButtonType::LeftShoulder:
+                    status.leftShoulder = false;
+                    break;
+                case gamepad::ButtonType::RightShoulder:
+                    status.rightShoulder = false;
+                    break;
+                case gamepad::ButtonType::DPadDown:
+                    status.dPadDown = false;
+                    break;
+                case gamepad::ButtonType::DPadLeft:
+                    status.dPadLeft = false;
+                    break;
+                case gamepad::ButtonType::DPadRight:
+                    status.dPadRight = false;
+                    break;
+                case gamepad::ButtonType::DPadUp:
+                    status.dPadUp = false;
+                    break;
+                default:
+            }
+        }
+    }
+}
+
 int main()
 {
     try {
         mgo::Log::init(
-            "debug.log", mgo::Log::Level::Debug, false); // false = don't append (i.e. overwrite)
+            "debug.log",
+            mgo::Log::Level::Debug,
+            false); // false = don't append (i.e. overwrite)
         gamepad::Gamepad gamepad;
         terminal::Terminal term(false);
-        float lx = 0.f;
-        float ly = 0.f;
-        float rx = 0.f;
-        float ry = 0.f;
+        GamepadStatus status;
         for (;;) {
+            std::size_t row = 4;
             term.cursorOff();
-            auto evts = gamepad.getEvents();
+            collateGamepadEvents(gamepad, status);
             if (!gamepad.isGamePadAttached()) {
-                term.printAt(1, 1, "Please attach a gamepad!");
+                terminal::MessageBoxOptions opts;
+                opts.message = "Please attach a gamepad!";
+                opts.col = 1;
+                opts.row = 1;
+                opts.mode = terminal::OutputMode::render;
+                term.messageBox(opts);
             } else {
                 term.printAt(1, 1, "SDL Gamepad Tester");
-                term.printAt(3, 1, "Press Escape to quit");
-                term.printAt(5, 1, "Left stick  X :");
-                term.printAt(6, 1, "Left stick  Y :");
-                term.printAt(7, 1, "Right stick X :");
-                term.printAt(8, 1, "Right stick Y :");
-                for (const auto& e : evts) {
-                    if (e.eventType == gamepad::EventType::Analogue) {
-                        lx = e.analogue.leftX;
-                        ly = e.analogue.leftY;
-                        rx = e.analogue.rightX;
-                        ry = e.analogue.rightY;
-                    }
-                }
-                term.printAt(5, 17, std::format("{:>6.3f}", lx));
-                term.printAt(6, 17, std::format("{:>6.3f}", ly));
-                term.printAt(7, 17, std::format("{:>6.3f}", rx));
-                term.printAt(8, 17, std::format("{:>6.3f}", ry));
+                term.printAt(2, 1, "----------------------");
+                term.printAt(row, 1, "Left stick  X :");
+                term.printAt(row++, 17, std::format("{:>6.3f}", status.leftX));
+                term.printAt(row, 1, "Left stick  Y :");
+                term.printAt(row++, 17, std::format("{:>6.3f}", status.leftY));
+                term.printAt(row, 1, "Right stick X :");
+                term.printAt(row++, 17, std::format("{:>6.3f}", status.rightX));
+                term.printAt(row, 1, "Right stick Y :");
+                term.printAt(row++, 17, std::format("{:>6.3f}", status.rightY));
+                term.printAt(row, 1, "Right trigger :");
+                term.printAt(row++, 17, std::format("{:>6.3f}", status.rightTrigger));
+                term.printAt(row, 1, "Left trigger  :");
+                term.printAt(row++, 17, std::format("{:>6.3f}", status.leftTrigger));
+                term.printAt(row, 1, "Right shoulder:");
+                term.printAt(row++, 17, std::format(" {}", status.rightShoulder));
+                term.printAt(row, 1, "Left shoulder :");
+                term.printAt(row++, 17, std::format(" {}", status.leftShoulder));
+                term.printAt(row, 1, "South button  :");
+                term.printAt(row++, 17, std::format(" {}", status.south));
+                term.printAt(row, 1, "North button  :");
+                term.printAt(row++, 17, std::format(" {}", status.north));
+                term.printAt(row, 1, "East button   :");
+                term.printAt(row++, 17, std::format(" {}", status.east));
+                term.printAt(row, 1, "West button   :");
+                term.printAt(row++, 17, std::format(" {}", status.west));
+                term.printAt(row, 1, "DPad down     :");
+                term.printAt(row++, 17, std::format(" {}", status.dPadDown));
+                term.printAt(row, 1, "DPad up       :");
+                term.printAt(row++, 17, std::format(" {}", status.dPadUp));
+                term.printAt(row, 1, "Dpad left     :");
+                term.printAt(row++, 17, std::format(" {}", status.dPadLeft));
+                term.printAt(row, 1, "Dpad right    :");
+                term.printAt(row++, 17, std::format(" {}", status.dPadRight));
+                term.printAt(row, 1, "Start         :");
+                term.printAt(row++, 17, std::format(" {}", status.start));
+                term.printAt(row, 1, "Back          :");
+                term.printAt(row++, 17, std::format(" {}", status.back));
+
+                ++row; // bit of space before Esc message
             }
+            term.printAt(row, 1, "Press Escape to quit");
             term.render();
             // Non-blocking key press check:
             std::optional<int> key = keyPress::getKeyPress(false);
@@ -52,7 +204,7 @@ int main()
                     break;
                 }
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
     } catch (const std::exception& e) {
         std::cerr << e.what();
