@@ -6,7 +6,7 @@
 #   make test     -> debug build + run tests
 #   make clean    -> remove all build directories and symlink
 
-APP_NAME := <<SET BINARY NAME HERE>>
+APP_NAME := sdlControllerTester
 
 BUILD_DIR_DEBUG   := build/Debug
 BUILD_DIR_RELEASE := build/Release
