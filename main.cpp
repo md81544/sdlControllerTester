@@ -1,6 +1,8 @@
-#include <iostream>
+#include "gamepad.h"
+#include <print>
 
 int main(){
-    std::cout << "Hello world" << std::endl;
+    gamepad::Gamepad gamepad;
+    std::println("SDL Controller Tester");
     return 0;
 }
