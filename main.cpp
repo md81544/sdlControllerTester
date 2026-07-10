@@ -32,6 +32,10 @@ struct GamepadStatus {
     bool dPadUp { false };
 };
 
+float analogueRound(float value) {
+    return std::round(value * 100.f) / 100.f;
+}
+
 // Consume all gamepad events since last call and populate status
 // as a snapshot of current state (doing this way may miss a button
 // press and subsequent release within the time window of a frame as
@@ -42,12 +46,12 @@ void collateGamepadEvents(gamepad::Gamepad& gamepad, GamepadStatus& status)
     auto evts = gamepad.getEvents();
     for (const auto& e : evts) {
         if (e.eventType == gamepad::EventType::Analogue) {
-            status.leftX = e.analogue.leftX;
-            status.leftY = e.analogue.leftY;
-            status.rightX = e.analogue.rightX;
-            status.rightY = e.analogue.rightY;
-            status.rightTrigger = e.analogue.rightTrigger;
-            status.leftTrigger = e.analogue.leftTrigger;
+            status.leftX = analogueRound(e.analogue.leftX);
+            status.leftY = analogueRound(e.analogue.leftY);
+            status.rightX = analogueRound(e.analogue.rightX);
+            status.rightY = analogueRound(e.analogue.rightY);
+            status.rightTrigger = analogueRound(e.analogue.rightTrigger);
+            status.leftTrigger = analogueRound(e.analogue.leftTrigger);
         }
         if (e.eventType == gamepad::EventType::ButtonPressed) {
             switch (e.buttonType) {
@@ -171,16 +175,16 @@ int main()
                 term.printAt(1, 1, "SDL Gamepad Tester");
                 term.printAt(2, 1, "----------------------");
                 term.printAt(row, 1, "Left stick  X :");
-                term.printAt(row++, 17, std::format("{:>6.3f}", status.leftX));
+                term.printAt(row++, 17, std::format("{:>6.2f}", status.leftX));
                 term.printAt(row, 1, "Left stick  Y :");
-                term.printAt(row++, 17, std::format("{:>6.3f}", status.leftY));
+                term.printAt(row++, 17, std::format("{:>6.2f}", status.leftY));
                 term.printAt(row, 1, "Right stick X :");
-                term.printAt(row++, 17, std::format("{:>6.3f}", status.rightX));
+                term.printAt(row++, 17, std::format("{:>6.2f}", status.rightX));
                 term.printAt(row, 1, "Right stick Y :");
-                term.printAt(row++, 17, std::format("{:>6.3f}", status.rightY));
+                term.printAt(row++, 17, std::format("{:>6.2f}", status.rightY));
                 term.printAt(row, 1, "R stick press :");
                 term.printAt(row++, 17, std::format(" {}", status.rightStickPress));
-                term.printAt(row, 1, "L stick press  :");
+                term.printAt(row, 1, "L stick press :");
                 term.printAt(row++, 17, std::format(" {}", status.leftStickPress));
                 term.printAt(row, 1, "Right trigger :");
                 term.printAt(row++, 17, std::format("{:>6.3f}", status.rightTrigger));
