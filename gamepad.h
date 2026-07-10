@@ -71,7 +71,7 @@ public:
     ~Gamepad();
     // This should be called once per game frame. It returns a vector
     // of events that have happened since the last call.
-    std::vector<Event> getEvents();
+    [[nodiscard]] std::vector<Event> getEvents();
     bool isGamePadAttached();
     void rumble(uint16_t lowFreqIntensity, uint16_t highFreqIntensity, uint32_t durationMs);
 

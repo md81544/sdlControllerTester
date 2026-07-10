@@ -6,6 +6,7 @@
 #include <ctime>
 #include <format>
 #include <fstream>
+#include <ios>
 #include <iostream>
 #include <mutex>
 #include <source_location>
@@ -36,7 +37,7 @@ public:
 
     // Initialise the singleton with a log file. Must be called once before any
     // logging takes place — typically early in main(). Throws on failure.
-    static void init(std::string_view filename, Level min_level = Level::Debug)
+    static void init(std::string_view filename, Level min_level = Level::Debug, bool append = true)
     {
         auto& instance = get_instance();
         std::scoped_lock lock { instance.m_mtx };
@@ -45,7 +46,8 @@ public:
             throw std::logic_error { "mgo::Log::init() called more than once" };
         }
 
-        instance.m_ofs.open(filename.data(), std::ios::app);
+        auto mode = append ? std::ios::app: std::ios::out;
+        instance.m_ofs.open(filename.data(), mode);
         if (!instance.m_ofs) {
             throw std::runtime_error { std::format(
                 "mgo::Log: cannot open '{}': {}", filename, std::strerror(errno)) };
