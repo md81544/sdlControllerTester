@@ -1,0 +1,1015 @@
+#include "terminal.h"
+#include "ascii.h" // for locale-independent functions
+#include "keypress.h"
+#include "log.h"
+#include <cassert>
+#include <cstddef>
+#include <cstdint>
+#include <format>
+#include <iostream>
+#include <limits>
+#include <optional>
+#include <ranges>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <sys/ioctl.h>
+#include <termios.h>
+#include <tuple>
+#include <unistd.h>
+#include <vector>
+
+namespace {
+
+bool hasUtf8Support()
+{
+    for (const char* var : { "LC_ALL", "LC_CTYPE", "LANG" }) {
+        const char* val = std::getenv(var);
+        if (val && val[0]) {
+            std::string_view s(val);
+            for (auto c : s) {
+                c = toupper(c);
+            }
+            if (s.find("UTF-8") != std::string_view::npos
+                || s.find("UTF8") != std::string_view::npos) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// Note on the following colour conversions: all colours should be
+// specified using RGB values, but for convenience there are definitions
+// for the ANSI 16 colours, e.g. Colour::Magenta (which is {170, 0, 170} ).
+// If the terminal doesn't support RGB colour (i.e. 256, 16, or mono) then
+// these functions are used (by setFgColour() and setBgColour()) to convert
+// accordingly. (Mono mode just ignores all attempts to change colour so
+// doesn't need a conversion function)
+
+// Perceptual luminance weights for sRGB
+constexpr double WEIGHT_R = 0.299;
+constexpr double WEIGHT_G = 0.587;
+constexpr double WEIGHT_B = 0.114;
+
+// Returns an index into terminal::Colour::ansi16
+std::size_t rgbToAnsi16(uint8_t r, uint8_t g, uint8_t b)
+{
+    std::size_t best_index = 0;
+    double best_dist = std::numeric_limits<double>::max();
+
+    for (int i = 0; i < 16; ++i) {
+        const double dr = r - terminal::Colour::ansi16[i].r;
+        const double dg = g - terminal::Colour::ansi16[i].g;
+        const double db = b - terminal::Colour::ansi16[i].b;
+        const double dist = WEIGHT_R * dr * dr + WEIGHT_G * dg * dg + WEIGHT_B * db * db;
+        if (dist < best_dist) {
+            best_dist = dist;
+            best_index = i;
+        }
+    }
+    return best_index; // 0-15
+}
+
+unsigned rgbToAnsi256(uint8_t r, uint8_t g, uint8_t b)
+{
+    // Quantise to nearest 256-palette entry (RGB cube, channels 0-5)
+    const int ri = r * 5 / 255;
+    const int gi = g * 5 / 255;
+    const int bi = b * 5 / 255;
+    return 16 + 36 * ri + 6 * gi + bi;
+}
+
+std::string colourIdxToAnsi16Fg(std::size_t colourIdx)
+{
+    if (colourIdx < 8) {
+        return std::format("\x1b[{}m", 30 + colourIdx);
+    } else {
+        return std::format("\x1b[{}m", 90 + (colourIdx - 8));
+    }
+}
+
+std::string colourIdxToAnsi16Bg(std::size_t colourIdx)
+{
+    if (colourIdx < 8) {
+        return std::format("\x1b[{}m", 40 + colourIdx);
+    } else {
+        return std::format("\x1b[{}m", 100 + (colourIdx - 8));
+    }
+}
+
+// Returns a mouse click in a messageBox as an optional keypress
+std::optional<int> convertMessageBoxClick(
+    const terminal::MessageBoxOptions& opts,
+    const std::vector<std::string>& buttons,
+    std::size_t buttonRow,
+    std::size_t buttonStart,
+    std::size_t clickRow,
+    std::size_t clickCol)
+{
+
+    if (buttons.empty() || buttonRow != clickRow || clickCol < buttonStart) {
+        return std::nullopt;
+    }
+    std::size_t counter { 0 };
+    for (const auto& b : buttons) {
+        if (clickCol - buttonStart <= b.size()) {
+            switch (counter) {
+                // First button is always Cancel or 'n'
+                case 0:
+                    if (opts.type == terminal::MessageBoxType::OkCancel) {
+                        return keyPress::ESC;
+                    } else if (opts.type == terminal::MessageBoxType::Ok) {
+                        return keyPress::ENTER;
+                    } else if (opts.type == terminal::MessageBoxType::YesNo) {
+                        return 'n';
+                    }
+                    break;
+                case 1:
+                    if (opts.type == terminal::MessageBoxType::OkCancel) {
+                        return keyPress::ENTER;
+                    } else if (opts.type == terminal::MessageBoxType::YesNo) {
+                        return 'y';
+                    }
+                    break;
+                default:
+                    assert(false);
+            }
+        }
+        buttonStart += b.size() + 1;
+        ++counter;
+    }
+    return std::nullopt;
+}
+
+} // anonymous namespace
+
+namespace terminal {
+
+Terminal::Terminal(bool enableFocusReporting)
+    : m_enableFocusReporting(enableFocusReporting)
+{
+    if (!isatty(STDOUT_FILENO)) {
+        throw std::runtime_error("Terminal is not a TTY");
+    }
+    if (hasUtf8Support()) {
+        m_utf8Supported = true;
+    }
+    // Switch to raw mode
+    tcgetattr(STDIN_FILENO, &m_termAttrs);
+    termios raw = m_termAttrs;
+    cfmakeraw(&raw);
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+
+    m_colourDepth = detectColourDepth();
+    m_renderMap.clear();
+    if (m_enableFocusReporting) {
+        std::cout << "\033[?1004h"; // enable focus reporting
+    }
+    std::cout << "\033[?1049h"; // switch to alternate screen
+    std::cout << "\033[?1000h\033[?1006h"; // SGR mode (if supported) for mouse reporting
+    std::cout << "\033[2J"; // clear screen
+    std::cout << "\033[H"; // cursor to home (1,1)
+    std::cout << std::flush;
+}
+
+Terminal::~Terminal()
+{
+    mgo::Log::debug("Resetting terminal in ~Terminal()");
+    std::cout << "\033[?25h"; // cursor unhide in case it was off
+    setCursorType(CursorType::Default, OutputMode::immediate); // reset any cursor change
+    std::cout << "\033[?1000l\033[?1006l"; // exit SGR mode
+    std::cout << "\033[?1049l"; // switch back to normal screen
+    if (m_enableFocusReporting) {
+        std::cout << "\033[?1004l"; // disable focus reporting
+    }
+    std::cout << std::flush;
+    keyPress::drainInputQueue(); // clear any remaining input
+
+    // Switch back to "cooked" mode
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &m_termAttrs);
+}
+
+void Terminal::render()
+{
+    std::cout << "\033[2J\033[H"; // clear screen
+    setFgColour(Colour::Default, OutputMode::immediate);
+    setBgColour(Colour::Default, OutputMode::immediate);
+    for (const auto& [_, text] : m_renderMap) {
+        std::cout << text;
+    }
+    std::cout << std::flush;
+    m_renderMap.clear();
+}
+
+void Terminal::printAt(std::size_t row, std::size_t col, std::string_view text, OutputMode mode)
+{
+    goTo(row, col, mode);
+    output(text, mode);
+}
+
+void Terminal::print(std::string_view text, OutputMode mode)
+{
+    output(text, mode);
+}
+
+void Terminal::goTo(std::size_t row, std::size_t col, OutputMode mode)
+{
+    // Note this function is 0-based whereas ANSI codes are 1-based
+    std::string text = std::format("\033[{};{}H", row + 1, col + 1);
+    output(text, mode);
+}
+
+void Terminal::setFgColour(ColourRgb rgb, OutputMode mode)
+{
+    if (rgb.defaultColour) {
+        output("\x1b[39m", mode); // works regardless of mode
+        return;
+    }
+    output(colourToAnsiFg(rgb), mode);
+}
+
+void Terminal::setBgColour(ColourRgb rgb, OutputMode mode)
+{
+    if (rgb.defaultColour) {
+        output("\x1b[49m", mode); // works regardless of mode
+        return;
+    }
+    output(colourToAnsiBg(rgb), mode);
+}
+
+ColourRgb Terminal::getFgColour() const
+{
+    return m_currentFgRgbColour;
+}
+
+ColourRgb Terminal::getBgColour() const
+{
+    return m_currentFgRgbColour;
+}
+
+void Terminal::cursorUp(uint8_t n, OutputMode mode)
+{
+    output("\033[" + std::to_string(n) + "A", mode);
+}
+
+void Terminal::cursorDown(uint8_t n, OutputMode mode)
+{
+    output("\033[" + std::to_string(n) + "B", mode);
+}
+
+void Terminal::cursorRight(uint8_t n, OutputMode mode)
+{
+    output("\033[" + std::to_string(n) + "C", mode);
+}
+
+void Terminal::cursorLeft(uint8_t n, OutputMode mode)
+{
+    output("\033[" + std::to_string(n) + "D", mode);
+}
+
+void Terminal::styleBold(bool on, OutputMode mode)
+{
+    output(getAnsiSequenceBold(on), mode);
+}
+
+void Terminal::styleItalic(bool on, OutputMode mode)
+{
+    output(getAnsiSequenceItalic(on), mode);
+}
+
+void Terminal::styleUnderline(bool on, OutputMode mode)
+{
+    output(getAnsiSequenceUnderline(on), mode);
+}
+
+void Terminal::noStyle(OutputMode mode)
+{
+    output("\033[0m", mode);
+}
+
+void Terminal::reverseFgBg(bool on, OutputMode mode)
+{
+    output(getAnsiSequenceReverseFgBg(on), mode);
+}
+
+void Terminal::setCursorType(CursorType type, OutputMode mode)
+{
+    output("\033[", mode);
+    switch (type) {
+        case CursorType::Default:
+            output("0", mode);
+            break;
+        case CursorType::BlockBlinking:
+            output("1", mode);
+            break;
+        case CursorType::BlockSteady:
+            output("2", mode);
+            break;
+        case CursorType::UnderlineBlinking:
+            output("3", mode);
+            break;
+        case CursorType::UnderlineSteady:
+            output("4", mode);
+            break;
+        case CursorType::VLineBlinking:
+            output("5", mode);
+            break;
+        case CursorType::VlineSteady:
+            output("6", mode);
+            break;
+        default:
+            output("0", mode);
+            assert("Unhandled CursorType enum");
+    }
+    output(" q", mode);
+}
+
+void Terminal::clearToEndOfLine(OutputMode mode)
+{
+    output("\033[K", mode);
+}
+
+void Terminal::clearToStartOfLine(OutputMode mode)
+{
+    output("\033[1K", mode);
+}
+
+void Terminal::clearLine(OutputMode mode)
+{
+    output("\033[2K", mode);
+}
+
+void Terminal::saveCursorPosition(OutputMode mode)
+{
+    output("\033[s", mode);
+}
+
+void Terminal::restoreCursorPosition(OutputMode mode)
+{
+    output("\033[u", mode);
+    output(getAnsiSequenceNoStyle(), mode); // see note in header
+}
+
+void Terminal::cursorOn(OutputMode mode)
+{
+    output("\033[?25h", mode);
+}
+
+void Terminal::cursorOff(OutputMode mode)
+{
+    output("\033[?25l", mode);
+}
+
+int Terminal::getChar()
+{
+    auto key = keyPress::getKeyPress();
+    return key.value_or(keyPress::NO_KEY);
+}
+
+void Terminal::bell(OutputMode mode)
+{
+    output("\007", mode);
+}
+
+void Terminal::printMenuString(
+    ColourRgb normal,
+    ColourRgb highlight,
+    std::string_view text,
+    OutputMode mode)
+{
+    ColourGuard _(this);
+    bool highlighting { false };
+    setFgColour(normal, mode);
+    for (const char c : text) {
+        if (c == '_') {
+            highlighting = true;
+            if (m_colourDepth == ColourDepth::None) {
+                styleUnderline(true);
+            }
+            setFgColour(highlight, mode);
+        } else {
+            print(std::string { c }, mode);
+            if (highlighting) {
+                highlighting = false;
+                if (m_colourDepth == ColourDepth::None) {
+                    styleUnderline(false);
+                }
+                setFgColour(normal, mode);
+            }
+        }
+    }
+}
+
+std::tuple<std::size_t, std::size_t> Terminal::getTerminalSize() const
+{
+    winsize ws;
+    unsigned short rows { 0 };
+    unsigned short cols { 0 };
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0) {
+        rows = ws.ws_row;
+        cols = ws.ws_col;
+    }
+    return { rows, cols };
+}
+
+bool Terminal::utf8Supported()
+{
+    return m_utf8Supported;
+}
+
+void Terminal::store()
+{
+    m_renderMap = m_savedRenderMap;
+}
+
+void Terminal::restore()
+{
+    m_savedRenderMap = m_renderMap;
+}
+
+int Terminal::messageBox(MessageBoxOptions& opts)
+{
+    // Provided we're not in render mode, messageBox will have the highest
+    // z position to ensure it's rendered last, to appear "on top".
+    ZHeightGuard _(m_zHeight, std::numeric_limits<uint8_t>::max());
+
+    if (opts.waitForKey && opts.mode != OutputMode::immediate) {
+        opts.waitForKey = false;
+        mgo::Log::error("waitForKey == true doesn't make sense in non-immediate mode");
+        assert(false);
+    }
+    if (opts.type != MessageBoxType::Plain && opts.mode != OutputMode::immediate) {
+        opts.type = MessageBoxType::Plain;
+        mgo::Log::error("MessageBoxType != Plain doesn't make sense in non-immediate mode");
+        assert(false);
+    }
+    std::vector<std::string> buttons;
+    if (opts.type == MessageBoxType::OkCancel) {
+        buttons = { " Cancel ", " OK " };
+    } else if (opts.type == MessageBoxType::Ok) {
+        buttons = { " OK " };
+    } else if (opts.type == MessageBoxType::YesNo) {
+        buttons = { " No ", " Yes " };
+    }
+    ColourGuard cg(this);
+    setFgColour(Colour::Default, opts.mode);
+    styleBold(true, opts.mode);
+    std::size_t localRow { opts.row };
+    std::size_t maxLen = 0;
+    std::vector<std::string> msgRows;
+    for (auto subrange : opts.message | std::views::split('\n')) {
+        msgRows.emplace_back(subrange.begin(), subrange.end());
+        if (maxLen < subrange.size()) {
+            maxLen = subrange.size();
+        }
+    }
+    if (maxLen < opts.prompt.size() + 2) {
+        maxLen = opts.prompt.size() + 2;
+    }
+    std::size_t buttonSize = 0;
+    std::string buttonString;
+    for (const auto& b : buttons) {
+        if (buttonSize > 0) {
+            buttonSize += 1; // spacing
+            buttonString.append(" ");
+        }
+        buttonSize += b.size();
+        buttonString.append(b);
+    }
+    if (maxLen < buttonSize + 2) {
+        maxLen = buttonSize + 2;
+    }
+    std::size_t col = opts.col;
+    if (opts.alignRight) {
+        col -= maxLen + 4;
+    }
+    goTo(localRow, col, opts.mode);
+    output(utfOrAscii("┌─", "+-"), opts.mode);
+    for (std::size_t n = 0; n < maxLen; ++n) {
+        output(utfOrAscii("─", "-"), opts.mode);
+    }
+    output(utfOrAscii("─┐", "-+"), opts.mode);
+    for (const auto& l : msgRows) {
+        ++localRow;
+        goTo(localRow, col, opts.mode);
+        std::string s
+            = std::format("{} {:{}} {}", utfOrAscii("│", "|"), l, maxLen, utfOrAscii("│", "|"));
+        output(s, opts.mode);
+    }
+    if (opts.waitForKey) {
+        ++localRow;
+        goTo(localRow, col, opts.mode);
+        saveCursorPosition(opts.mode); // NOTE! Also saves style on many terminals
+        std::string s
+            = std::format("{} {:{}} {}", utfOrAscii("│", "|"), "", maxLen, utfOrAscii("│", "|"));
+        output(s, opts.mode);
+    }
+    if (!buttons.empty()) {
+        ++localRow;
+        goTo(localRow, col, opts.mode);
+        std::string blank
+            = std::format("{} {:{}} {}", utfOrAscii("│", "|"), "", maxLen, utfOrAscii("│", "|"));
+        output(blank, opts.mode);
+        ++localRow;
+        goTo(localRow, col, opts.mode);
+        std::string s(utfOrAscii("│", "|"));
+        s.push_back(' ');
+        s.append(std::string(maxLen - buttonString.size(), ' '));
+        for (const auto& b : buttons) {
+            s.append(getAnsiSequenceReverseFgBg(true));
+            s.append(b);
+            s.append(getAnsiSequenceReverseFgBg(false));
+            s.push_back(' ');
+        }
+        s.append(std::string(utfOrAscii("│", "|")));
+        output(s, opts.mode);
+    }
+    goTo(++localRow, col, opts.mode);
+    output(utfOrAscii("└─", "+-"), opts.mode);
+    for (std::size_t n = 0; n < maxLen; ++n) {
+        output(utfOrAscii("─", "-"), opts.mode);
+    }
+    output(utfOrAscii("─┘", "-+"), opts.mode);
+    styleBold(false, opts.mode);
+    if (opts.waitForKey || opts.type != MessageBoxType::Plain) {
+        restoreCursorPosition(opts.mode);
+        cursorRight(2, opts.mode);
+        output(opts.prompt, opts.mode);
+        cursorRight(1, opts.mode);
+        if (opts.waitForKey) {
+            setCursorType(CursorType::BlockBlinking, opts.mode);
+            cursorOn(opts.mode);
+        }
+        int key { 0 };
+        while (true) {
+            key = getChar();
+            if (key == keyPress::MOUSE) {
+                // Where was the click?
+                auto buttonKey = convertMessageBoxClick(
+                    opts,
+                    buttons,
+                    localRow - 1,
+                    col + (maxLen - buttonString.size()),
+                    keyPress::lastMouseEvent.row,
+                    keyPress::lastMouseEvent.col);
+                if (buttonKey.has_value()) {
+                    key = buttonKey.value();
+                    break;
+                }
+            } else {
+                if (key == keyPress::FOCUS_OUT || key == keyPress::FOCUS_IN) {
+                    break;
+                }
+                if (ascii::isascii(key) && key != 0) {
+                    break;
+                }
+            }
+        }
+        cursorOff(opts.mode);
+        return key;
+    } else {
+        return keyPress::NO_KEY;
+    }
+}
+
+void Terminal::setShutdownCheckFunction(std::function<bool()> fn)
+{
+    keyPress::shutdownCheckFunction = fn;
+}
+
+InputResult Terminal::input(InputOptions& opts)
+{
+    // Note, not using readline library here. While readline (GNU especially)
+    // has hooks to probably cover needs, it IS a separate dependency which
+    // may or may not be available when compiling (and will need -I locations
+    // determining, especially if installed by homebrew). This should suffice.
+    constexpr OutputMode imm = OutputMode::immediate;
+    opts.currentValue = opts.defaultValue;
+    ColourRgb oldFg = getFgColour();
+    ColourRgb oldBg = getBgColour();
+    cursorOn(imm);
+    bool done = false;
+    if (opts.overrideCursorType != CursorType::Default) {
+        setCursorType(opts.overrideCursorType, imm);
+    } else {
+        if (opts.mode == Mode::Insert) {
+            setCursorType(CursorType::VLineBlinking, imm);
+        } else {
+            setCursorType(CursorType::BlockBlinking, imm);
+        }
+    }
+    InputResult rc;
+    while (!done) {
+        // Print the current value
+        cursorOff(imm);
+        goTo(opts.row, opts.col, imm);
+        setBgColour(opts.bgColour, imm);
+        setFgColour(opts.fgColour, imm);
+        std::cout << opts.prompt;
+        std::cout << opts.currentValue;
+        // If it's a fixed size then we print underscores
+        // to show available space for entry
+        if (opts.currentValue.size() < opts.maxLen) {
+            for (std::size_t n = 0; n < opts.maxLen - opts.currentValue.size(); ++n) {
+                std::cout << "_";
+            }
+        }
+        setFgColour(oldFg, imm);
+        setBgColour(oldBg, imm);
+        if (opts.reportStatus == InputReportStatus::SizeInLetters && !opts.currentValue.empty()) {
+            styleItalic(true, imm);
+            std::cout << std::format("  ({} letters)", opts.currentValue.size());
+            styleItalic(false, imm);
+        }
+        if (opts.reportStatus == InputReportStatus::Status) {
+            styleItalic(true, imm);
+            std::cout << std::format("  {}", opts.statusData);
+            styleItalic(false, imm);
+        }
+
+        clearToEndOfLine(imm); // See note in header; this works around tmux behaviour;
+                               // Downside is anything after the input will be cleared.
+        cursorOn(imm);
+        // Position cursor to insertion/overwrite point
+        goTo(opts.row, opts.col + opts.cursorPos + opts.prompt.size(), imm);
+        opts.previousValue = opts.currentValue; // for restoration if caller cancels in post hook
+        int key = getChar();
+        if (key == keyPress::MOUSE) {
+            if (keyPress::lastMouseEvent.button == 0) {
+                if (keyPress::lastMouseEvent.row == opts.row
+                    && (keyPress::lastMouseEvent.col >= opts.col
+                        && keyPress::lastMouseEvent.col
+                            <= opts.col + opts.currentValue.size() - 1)) {
+                    opts.cursorPos = keyPress::lastMouseEvent.col - opts.col;
+                } else {
+                    // user clicked off the input field
+                    rc.mouseClickCol = keyPress::lastMouseEvent.col;
+                    rc.mouseClickRow = keyPress::lastMouseEvent.row;
+                    rc.clickType = InputMouseClickType::ClickedOff;
+                    key = keyPress::ENTER;
+                }
+            }
+        }
+        // Is the key an additional entry key specified by the caller?
+        for (const int ek : opts.additionalEntryKeys) {
+            if (key == ek) {
+                opts.entryKey = key;
+                done = true;
+                break;
+            }
+        }
+        if (done) {
+            break;
+        }
+        
+        if (key == keyPress::FOCUS_OUT) {
+            rc.lostFocus = true;
+            key = keyPress::ENTER;
+        }
+        if (ascii::isprint(key) && opts.keysAllowed > 0) {
+            bool matched = false;
+            if (opts.keysAllowed & keysAllowed::alpha) {
+                if (ascii::isalpha(key)) {
+                    matched = true;
+                }
+            }
+            if (opts.keysAllowed & keysAllowed::numeric) {
+                if (ascii::isdigit(key)) {
+                    matched = true;
+                }
+            }
+            if (opts.keysAllowed & keysAllowed::decimal) {
+                if (ascii::isdigit(key) || key == '.') {
+                    matched = true;
+                }
+            }
+            if (opts.keysAllowed & keysAllowed::punct) {
+                if (ascii::ispunct(key)) {
+                    matched = true;
+                }
+            }
+            if (opts.keysAllowed & keysAllowed::special) {
+                if (opts.specialKeys.contains(key)) {
+                    matched = true;
+                }
+            }
+            if (!matched) {
+                key = keyPress::NO_KEY;
+            }
+        }
+        // The following two "keysAllowed" actually just force upper / lowercase
+        if (opts.keysAllowed & keysAllowed::upper) {
+            if (ascii::isalpha(key)) {
+                key = ascii::toupper(key);
+            }
+        }
+        if (opts.keysAllowed & keysAllowed::lower) {
+            if (ascii::isalpha(key)) {
+                key = ascii::tolower(key);
+            }
+        }
+        // Call any pre hook the caller set:
+        key = opts.preInsertHook(key);
+        // Handle all the "special" keys.
+        // We set key to NO_KEY and only restore it
+        // in the default: section of the switch below so
+        // that key is automatically NO_KEY if handled.
+        int keyOrig = key;
+        key = keyPress::NO_KEY;
+        switch (keyOrig) {
+            case keyPress::NO_KEY:
+                break;
+            case keyPress::ENTER:
+            case keyPress::TAB:
+            case keyPress::SHIFT_TAB:
+            case keyPress::UP:
+            case keyPress::DOWN:
+                opts.entryKey = keyOrig;
+                done = true;
+                break;
+            case keyPress::BACKSPACE:
+                if (!opts.currentValue.empty() && opts.cursorPos > 0) {
+                    if (opts.cursorPos == opts.currentValue.size()) {
+                        opts.currentValue.pop_back();
+                    } else {
+                        if (opts.cursorPos > 0) {
+                            opts.currentValue.erase(
+                                opts.currentValue.begin() + opts.cursorPos - 1,
+                                opts.currentValue.begin() + opts.cursorPos);
+                        }
+                    }
+                    --opts.cursorPos;
+                }
+                break;
+            case keyPress::DELETE:
+                if (opts.cursorPos < opts.currentValue.size()) {
+                    opts.currentValue.erase(
+                        opts.currentValue.begin() + opts.cursorPos,
+                        opts.currentValue.begin() + opts.cursorPos + 1);
+                }
+                break;
+            case keyPress::ESC:
+            case keyPress::CTRL_C:
+                opts.currentValue = opts.defaultValue;
+                done = true;
+                break;
+            case keyPress::CTRL_A:
+            case keyPress::HOME:
+                opts.cursorPos = 0;
+                break;
+            case keyPress::CTRL_E:
+            case keyPress::END:
+                if (opts.mode == Mode::Overwrite) {
+                    // Don't move cursor outside "box" in overwrite mode
+                    opts.cursorPos = opts.currentValue.size() - 1;
+                } else {
+                    opts.cursorPos = opts.currentValue.size();
+                }
+                break;
+            case keyPress::CTRL_U:
+                // need to clear the display, not using clear to end
+                // of line as it might invalidate other parts of the UI
+                goTo(opts.row, opts.col, imm);
+                for (std::size_t n = 0; n < opts.currentValue.size(); ++n) {
+                    std::cout << " ";
+                }
+                opts.currentValue.clear();
+                opts.cursorPos = 0;
+                break;
+            case keyPress::LEFT:
+                if (opts.cursorPos > 0) {
+                    --opts.cursorPos;
+                }
+                break;
+            case keyPress::RIGHT:
+                {
+                    std::size_t max = opts.currentValue.size();
+                    if (opts.mode == Mode::Overwrite && max > 0) {
+                        --max;
+                    }
+                    if (opts.cursorPos < max) {
+                        ++opts.cursorPos;
+                    }
+                }
+                break;
+            default:
+                // key was not handled so reset key to keyOrig
+                // only if it is printable (i.e. not an unhandled
+                // "special" key)
+                if (ascii::isprint(keyOrig)) {
+                    key = keyOrig;
+                } else {
+                    key = keyPress::NO_KEY;
+                }
+        }
+        // Finally add/insert to value
+        if (!done && key != keyPress::NO_KEY) {
+            std::size_t localMaxLen = opts.maxLen;
+            if (localMaxLen == 0) {
+                localMaxLen = std::numeric_limits<std::size_t>::max();
+            }
+            if (opts.cursorPos == opts.currentValue.size()) {
+                if (opts.currentValue.size() < localMaxLen) {
+                    opts.currentValue.push_back(key);
+                }
+            } else {
+                if (opts.mode == Mode::Overwrite) {
+                    opts.currentValue[opts.cursorPos] = key;
+                } else {
+                    if (opts.currentValue.size() < localMaxLen) {
+                        opts.currentValue.insert(opts.currentValue.begin() + opts.cursorPos, key);
+                    }
+                }
+            }
+            if ((opts.mode == Mode::Insert && opts.cursorPos < localMaxLen)
+                || (opts.mode == Mode::Overwrite && opts.cursorPos < localMaxLen - 1)) {
+                ++opts.cursorPos;
+            }
+        }
+        // Call any post hook the caller set. Unless the caller returned NO_KEY
+        // in the pre hook.
+        if (key != keyPress::NO_KEY) {
+            if (!opts.postInsertHook()) {
+                // false signifies the caller wants to abort the insertion
+                opts.currentValue = opts.previousValue;
+            }
+        }
+        opts.afterEveryIterationHook();
+    }
+    cursorOff(imm);
+    rc.enteredString = opts.currentValue;
+    return rc;
+}
+
+std::string Terminal::getAnsiSequenceBold(bool on)
+{
+    if (on) {
+        return "\033[1m";
+    } else {
+        return "\033[22m";
+    }
+}
+
+std::string Terminal::getAnsiSequenceItalic(bool on)
+{
+    if (on) {
+        return "\033[3m";
+    } else {
+        return "\033[23m";
+    }
+}
+
+std::string Terminal::getAnsiSequenceUnderline(bool on)
+{
+    if (on) {
+        return "\033[4m";
+    } else {
+        return "\033[24m";
+    }
+}
+
+std::string Terminal::getAnsiSequenceNoStyle()
+{
+    return "\033[0m";
+}
+
+std::string Terminal::getAnsiSequenceReverseFgBg(bool on)
+{
+    if (on) {
+        return "\033[7m";
+    } else {
+        return "\033[27m";
+    }
+}
+
+ColourDepth Terminal::detectColourDepth()
+{
+    const auto env = [](const char* name) -> std::string_view {
+        const char* v = std::getenv(name);
+        return v ? v : "";
+    };
+
+    // If inside tmux, COLORTERM is unreliable — check the outer terminal instead.
+    // tmux sets TERM=screen or TERM=tmux (plus -256color variants) and TMUX is set.
+    const bool in_tmux = !env("TMUX").empty();
+
+    if (in_tmux) {
+        // tmux >=2.2 passes through truecolor if terminal-overrides is configured.
+        // The outer terminal is described by TERM_PROGRAM (set by the launching shell).
+        auto tp = env("TERM_PROGRAM");
+        if (tp == "iTerm.app" || tp == "vscode" || tp == "Hyper") {
+            return ColourDepth::TrueColour;
+        }
+
+        // tmux advertises 256-color support via its own TERM string
+        auto term = env("TERM");
+        if (term.find("256color") != std::string_view::npos
+            || term.find("tmux") != std::string_view::npos) {
+            return ColourDepth::Ansi256;
+        }
+
+        return ColourDepth::Ansi16;
+    }
+
+    // Outside tmux: strongest signal first.
+    auto ct = env("COLORTERM");
+    if (ct == "truecolor" || ct == "24bit") {
+        return ColourDepth::TrueColour;
+    }
+
+    auto tp = env("TERM_PROGRAM");
+    if (tp == "iTerm.app" || tp == "vscode") {
+        return ColourDepth::TrueColour;
+    }
+
+    auto term = env("TERM");
+    if (term.find("256color") != std::string_view::npos) {
+        return ColourDepth::Ansi256;
+    }
+    if (term == "dumb" || term.empty()) {
+        return ColourDepth::None;
+    }
+
+    return ColourDepth::Ansi16;
+}
+
+void Terminal::setColourDepth(ColourDepth colourDepth)
+{
+    m_colourDepth = colourDepth;
+}
+
+// Private member functions:
+
+std::string_view Terminal::utfOrAscii(std::string_view utfVersion, std::string_view asciiVersion)
+{
+    if (m_utf8Supported) {
+        return utfVersion;
+    }
+    return asciiVersion;
+}
+
+std::string Terminal::colourToAnsiFg(ColourRgb rgb)
+{
+    switch (m_colourDepth) {
+        case ColourDepth::None:
+            // Nothing to do
+            return {};
+        case ColourDepth::Ansi16:
+            {
+                const std::size_t idx = rgbToAnsi16(rgb.r, rgb.g, rgb.b);
+                return colourIdxToAnsi16Fg(idx);
+            }
+            break;
+        case ColourDepth::Ansi256:
+            {
+                const unsigned colourCode = rgbToAnsi256(rgb.r, rgb.g, rgb.b);
+                return std::format("\x1b[38;5;{}m", colourCode);
+            }
+            break;
+        case ColourDepth::TrueColour:
+            return std::format("\x1b[38;2;{};{};{}m", rgb.r, rgb.g, rgb.b);
+            break;
+        default:
+            assert("Unhandled colour depth");
+            return {};
+    }
+}
+
+std::string Terminal::colourToAnsiBg(ColourRgb rgb)
+{
+    switch (m_colourDepth) {
+        case ColourDepth::None:
+            // Nothing to do
+            return {};
+        case ColourDepth::Ansi16:
+            {
+                const std::size_t idx = rgbToAnsi16(rgb.r, rgb.g, rgb.b);
+                return colourIdxToAnsi16Bg(idx);
+            }
+            break;
+        case ColourDepth::Ansi256:
+            {
+                const unsigned colourCode = rgbToAnsi256(rgb.r, rgb.g, rgb.b);
+                return std::format("\x1b[48;5;{}m", colourCode);
+            }
+            break;
+        case ColourDepth::TrueColour:
+            return std::format("\x1b[48;2;{};{};{}m", rgb.r, rgb.g, rgb.b);
+            break;
+        default:
+            assert("Unhandled colour depth");
+            return {};
+    }
+}
+
+void Terminal::output(std::string_view text, OutputMode mode)
+{
+    if (mode == OutputMode::immediate) {
+        std::cout << text << std::flush;
+    } else {
+        m_renderMap.insert(std::pair(m_zHeight.getZHeight(), text));
+    }
+}
+
+} // namespace terminal

@@ -20,6 +20,7 @@ find_package(SDL3 REQUIRED)
 add_executable(${APP_NAME}
     main.cpp
     gamepad.cpp
+    terminal.cpp
 )
 
 target_compile_options(${APP_NAME} PRIVATE
