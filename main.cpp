@@ -16,8 +16,8 @@ concept FloatOrBool = std::same_as<T, float> || std::same_as<T, bool>;
 template <FloatOrBool T>
 void highlight(terminal::Terminal& term, std::size_t row, std::size_t col, T value)
 {
+    terminal::ColourGuard cg(&term);
     if constexpr (std::same_as<T, float>) {
-        terminal::ColourGuard cg(&term);
         float v = value;
         if (std::abs(v) < 0.01f) {
             v = 0.f;
@@ -26,7 +26,6 @@ void highlight(terminal::Terminal& term, std::size_t row, std::size_t col, T val
         }
         term.printAt(row, col, std::format("{:>6.2f}", v));
     } else {
-        terminal::ColourGuard cg(&term);
         if (value) {
             term.setFgColour(terminal::Colour::BrightYellow);
             term.printAt(row, col, " Press");
@@ -198,48 +197,49 @@ int main()
                 opts.mode = terminal::OutputMode::render;
                 term.messageBox(opts);
             } else {
+                constexpr std::size_t col = 18;
                 term.printAt(1, 1, "SDL Gamepad Tester");
                 term.printAt(2, 1, "----------------------");
-                term.printAt(row, 1, "Left stick  X :");
-                highlight(term, row++, 17, status.leftX);
-                term.printAt(row, 1, "Left stick  Y :");
-                highlight(term, row++, 17, status.leftY);
-                term.printAt(row, 1, "Right stick X :");
-                highlight(term, row++, 17, status.rightX);
-                term.printAt(row, 1, "Right stick Y :");
-                highlight(term, row++, 17, status.rightY);
-                term.printAt(row, 1, "R stick press :");
-                highlight(term, row++, 17, status.rightStickPress);
-                term.printAt(row, 1, "L stick press :");
-                highlight(term, row++, 17, status.leftStickPress);
-                term.printAt(row, 1, "Right trigger :");
-                highlight(term, row++, 17, status.rightTrigger);
-                term.printAt(row, 1, "Left trigger  :");
-                highlight(term, row++, 17, status.leftTrigger);
-                term.printAt(row, 1, "Right shoulder:");
-                highlight(term, row++, 17, status.rightShoulder);
-                term.printAt(row, 1, "Left shoulder :");
-                highlight(term, row++, 17, status.leftShoulder);
-                term.printAt(row, 1, "South button  :");
-                highlight(term, row++, 17, status.south);
-                term.printAt(row, 1, "North button  :");
-                highlight(term, row++, 17, status.north);
-                term.printAt(row, 1, "East button   :");
-                highlight(term, row++, 17, status.east);
-                term.printAt(row, 1, "West button   :");
-                highlight(term, row++, 17, status.west);
-                term.printAt(row, 1, "DPad down     :");
-                highlight(term, row++, 17, status.dPadDown);
-                term.printAt(row, 1, "DPad up       :");
-                highlight(term, row++, 17, status.dPadUp);
-                term.printAt(row, 1, "Dpad left     :");
-                highlight(term, row++, 17, status.dPadLeft);
-                term.printAt(row, 1, "Dpad right    :");
-                highlight(term, row++, 17, status.dPadRight);
-                term.printAt(row, 1, "Start         :");
-                highlight(term, row++, 17, status.start);
-                term.printAt(row, 1, "Back          :");
-                highlight(term, row++, 17, status.back);
+                term.printAt(row, 1, "Left stick  X  :");
+                highlight(term, row++, col, status.leftX);
+                term.printAt(row, 1, "Left stick  Y  :");
+                highlight(term, row++, col, status.leftY);
+                term.printAt(row, 1, "Right stick X  :");
+                highlight(term, row++, col, status.rightX);
+                term.printAt(row, 1, "Right stick Y  :");
+                highlight(term, row++, col, status.rightY);
+                term.printAt(row, 1, "R stick press  :");
+                highlight(term, row++, col, status.rightStickPress);
+                term.printAt(row, 1, "L stick press  :");
+                highlight(term, row++, col, status.leftStickPress);
+                term.printAt(row, 1, "Right trigger  :");
+                highlight(term, row++, col, status.rightTrigger);
+                term.printAt(row, 1, "Left trigger   :");
+                highlight(term, row++, col, status.leftTrigger);
+                term.printAt(row, 1, "Right shoulder :");
+                highlight(term, row++, col, status.rightShoulder);
+                term.printAt(row, 1, "Left shoulder  :");
+                highlight(term, row++, col, status.leftShoulder);
+                term.printAt(row, 1, "South button   :");
+                highlight(term, row++, col, status.south);
+                term.printAt(row, 1, "North button   :");
+                highlight(term, row++, col, status.north);
+                term.printAt(row, 1, "East button    :");
+                highlight(term, row++, col, status.east);
+                term.printAt(row, 1, "West button    :");
+                highlight(term, row++, col, status.west);
+                term.printAt(row, 1, "DPad down      :");
+                highlight(term, row++, col, status.dPadDown);
+                term.printAt(row, 1, "DPad up        :");
+                highlight(term, row++, col, status.dPadUp);
+                term.printAt(row, 1, "Dpad left      :");
+                highlight(term, row++, col, status.dPadLeft);
+                term.printAt(row, 1, "Dpad right     :");
+                highlight(term, row++, col, status.dPadRight);
+                term.printAt(row, 1, "Start          :");
+                highlight(term, row++, col, status.start);
+                term.printAt(row, 1, "Back           :");
+                highlight(term, row++, col, status.back);
 
                 ++row; // bit of space before Esc message
             }
