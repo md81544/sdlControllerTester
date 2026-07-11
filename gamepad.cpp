@@ -187,7 +187,7 @@ std::vector<Event> Gamepad::getEvents()
                     logConnection(pad, id);
                     Event evt;
                     evt.eventType = EventType::Connect;
-                    evt.joystickId = id;
+                    evt.gamepadId = id;
                     events.push_back(evt);
                     break;
                 }
@@ -198,7 +198,7 @@ std::vector<Event> Gamepad::getEvents()
                     mgo::Log::debug("Disconnected gamepad id {}", id);
                     Event evt;
                     evt.eventType = EventType::Disconnect;
-                    evt.joystickId = id;
+                    evt.gamepadId = id;
                     events.push_back(evt);
                     auto it = m_gamepads.find(id);
                     if (it != m_gamepads.end()) {
@@ -215,7 +215,7 @@ std::vector<Event> Gamepad::getEvents()
                     mgo::Log::debug("{} pressed", buttonName(btn));
                     Event evt;
                     evt.eventType = EventType::ButtonPressed;
-                    evt.joystickId = id;
+                    evt.gamepadId = id;
                     evt.buttonType = sdlToButtonType(btn);
                     events.push_back(evt);
                     break;
@@ -228,7 +228,7 @@ std::vector<Event> Gamepad::getEvents()
                     mgo::Log::debug("{} released", buttonName(btn));
                     Event evt;
                     evt.eventType = EventType::ButtonReleased;
-                    evt.joystickId = id;
+                    evt.gamepadId = id;
                     evt.buttonType = sdlToButtonType(btn);
                     events.push_back(evt);
                     break;
@@ -239,28 +239,30 @@ std::vector<Event> Gamepad::getEvents()
                 // gets a snapshot of the final values of all sticks
                 // at every call to getEvents(). Otherwise there would be many
                 // events for each individual axis.
-                // TODO we're not caring about gamepad id here, so if multiple gamepads
-                // are attached they will affect the output.
                 {
+                    auto id = sdlEvent.gdevice.which;
+                    if (!m_previousAnalogueStatus.contains(id)) {
+                        m_previousAnalogueStatus[id] = AnalogueStatus {};
+                    }
                     float value = joystickCurve(normaliseAxis(sdlEvent.gaxis.value));
                     switch (sdlEvent.gaxis.axis) {
                         case SDL_GAMEPAD_AXIS_LEFTX:
-                            m_analogueStatus.leftX = value;
+                            m_analogueStatus[id].leftX = value;
                             break;
                         case SDL_GAMEPAD_AXIS_LEFTY:
-                            m_analogueStatus.leftY = -value;
+                            m_analogueStatus[id].leftY = -value;
                             break;
                         case SDL_GAMEPAD_AXIS_RIGHTX:
-                            m_analogueStatus.rightX = value;
+                            m_analogueStatus[id].rightX = value;
                             break;
                         case SDL_GAMEPAD_AXIS_RIGHTY:
-                            m_analogueStatus.rightY = -value;
+                            m_analogueStatus[id].rightY = -value;
                             break;
                         case SDL_GAMEPAD_AXIS_RIGHT_TRIGGER:
-                            m_analogueStatus.rightTrigger = value;
+                            m_analogueStatus[id].rightTrigger = value;
                             break;
                         case SDL_GAMEPAD_AXIS_LEFT_TRIGGER:
-                            m_analogueStatus.leftTrigger = value;
+                            m_analogueStatus[id].leftTrigger = value;
                             break;
                         default:
                             // do nothing
@@ -272,24 +274,22 @@ std::vector<Event> Gamepad::getEvents()
                 break;
         }
     }
-    if (m_analogueStatus.leftTrigger != m_previousAnalogueStatus.leftTrigger
-        || m_analogueStatus.rightTrigger != m_previousAnalogueStatus.rightTrigger
-        || m_analogueStatus.leftX != m_previousAnalogueStatus.leftX
-        || m_analogueStatus.rightX != m_previousAnalogueStatus.rightX
-        || m_analogueStatus.leftY != m_previousAnalogueStatus.leftY
-        || m_analogueStatus.rightY != m_previousAnalogueStatus.rightY) {
-        Event evt;
-        evt.eventType = EventType::Analogue;
-        evt.analogue = m_analogueStatus;
-        events.push_back(evt);
-        m_previousAnalogueStatus = m_analogueStatus;
+    for (const auto& as : m_analogueStatus) {
+        if (as.second.leftTrigger != m_previousAnalogueStatus[as.first].leftTrigger
+            || as.second.rightTrigger != m_previousAnalogueStatus[as.first].rightTrigger
+            || as.second.leftX != m_previousAnalogueStatus[as.first].leftX
+            || as.second.rightX != m_previousAnalogueStatus[as.first].rightX
+            || as.second.leftY != m_previousAnalogueStatus[as.first].leftY
+            || as.second.rightY != m_previousAnalogueStatus[as.first].rightY) {
+            Event evt;
+            evt.gamepadId = as.first;
+            evt.eventType = EventType::Analogue;
+            evt.analogue = as.second;
+            events.push_back(evt);
+            m_previousAnalogueStatus[as.first] = m_analogueStatus[as.first];
+        }
     }
     return events;
-}
-
-bool Gamepad::isGamePadAttached()
-{
-    return !m_gamepads.empty();
 }
 
 void Gamepad::rumble(uint16_t lowFreqIntensity, uint16_t highFreqIntensity, uint32_t durationMs)
@@ -328,4 +328,10 @@ void Gamepad::logConnection(SDL_Gamepad* pad, unsigned id)
         SDL_free(mapping); // mapping string is heap-allocated, we own it
     }
 }
+
+std::size_t Gamepad::getGamepadCount()
+{
+    return m_gamepads.size();
+}
+
 } // namespace gamepad

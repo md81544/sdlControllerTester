@@ -67,6 +67,12 @@ float analogueRound(float value)
 // press and subsequent release within the time window of a frame as
 // the release will overwrite the press status, but it's fine for this
 // test).
+//
+// Note! events contain gamepadId to distinguish between gamepads if
+// more than one is connected at once. We ignore this here and
+// simply report on all gamepad events. In real use we might want to
+// ask the user to press a button to start to determine which gamepad
+// is in use if more than one is detected.
 void collateGamepadEvents(gamepad::Gamepad& gamepad, GamepadStatus& status)
 {
     auto evts = gamepad.getEvents();
@@ -189,8 +195,9 @@ int main()
         for (;;) {
             std::size_t row = 5;
             term.cursorOff();
+            // This calls gamepad.getEvents():
             collateGamepadEvents(gamepad, status);
-            if (!gamepad.isGamePadAttached()) {
+            if (gamepad.getGamepadCount() == 0) {
                 terminal::MessageBoxOptions opts;
                 opts.message = "Please attach a gamepad!";
                 opts.col = 1;

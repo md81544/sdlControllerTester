@@ -52,16 +52,16 @@ enum class EventType {
 };
 
 struct AnalogueStatus {
-    float leftX {0.f};
-    float leftY {0.f};
-    float rightX {0.f};
-    float rightY {0.f};
-    float leftTrigger {0.f};
-    float rightTrigger {0.f};
+    float leftX { 0.f };
+    float leftY { 0.f };
+    float rightX { 0.f };
+    float rightY { 0.f };
+    float leftTrigger { 0.f };
+    float rightTrigger { 0.f };
 };
 
 struct Event {
-    uint32_t joystickId { 0 };
+    uint32_t gamepadId { 0 };
     EventType eventType { EventType::Unknown };
     ButtonType buttonType { ButtonType::NotApplicable };
     ButtonAction buttonAction { ButtonAction::NotApplicable };
@@ -75,15 +75,19 @@ public:
     // This should be called once per game frame. It returns a vector
     // of events that have happened since the last call.
     [[nodiscard]] std::vector<Event> getEvents();
-    bool isGamePadAttached();
     void rumble(uint16_t lowFreqIntensity, uint16_t highFreqIntensity, uint32_t durationMs);
     std::string getGamepadType();
+    // Return number of gamepads connected. If more than one is connected,
+    // it's recommended to ask the user to press a button to start the application,
+    // thereby determining which gamepadId is being used, and filter events on just that
+    // gamepadId.
+    std::size_t getGamepadCount();
 
 private:
     void logConnection(SDL_Gamepad* pad, unsigned gamepadId);
     std::unordered_map<SDL_JoystickID, SDL_Gamepad*> m_gamepads;
-    AnalogueStatus m_analogueStatus;
-    AnalogueStatus m_previousAnalogueStatus;
+    std::unordered_map<SDL_JoystickID, AnalogueStatus> m_analogueStatus;
+    std::unordered_map<SDL_JoystickID, AnalogueStatus> m_previousAnalogueStatus;
 };
 
 } // namespace gamepad
