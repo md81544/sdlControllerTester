@@ -25,6 +25,9 @@ namespace mgo {
 //        mgo::Log::error("Crikey, dead serious error");
 //        mgo::Log::debug("Got here");
 //
+// Note there are template overloads which enable format strings to
+// avoid having to use std::format, e.g.:
+//        mgo::Log::debug("X={}", x);
 
 class Log {
 public:
@@ -77,7 +80,25 @@ public:
     {
         privateLog(Level::Error, msg, loc);
     }
-
+    // The following allows usage of loggging functions as if they were std::print.
+    // std::format_string usage here means the format string is checked
+    // at compile time.
+    template <typename... Args> static void debug(std::format_string<Args...> fmt, Args&&... args)
+    {
+        debug(std::format(fmt, std::forward<Args>(args)...));
+    }
+    template <typename... Args> static void info(std::format_string<Args...> fmt, Args&&... args)
+    {
+        info(std::format(fmt, std::forward<Args>(args)...));
+    }
+    template <typename... Args> static void warn(std::format_string<Args...> fmt, Args&&... args)
+    {
+        warn(std::format(fmt, std::forward<Args>(args)...));
+    }
+    template <typename... Args> static void error(std::format_string<Args...> fmt, Args&&... args)
+    {
+        error(std::format(fmt, std::forward<Args>(args)...));
+    }
     // Non-copyable, non-movable.
     Log(const Log&) = delete;
     Log& operator=(const Log&) = delete;

@@ -145,7 +145,7 @@ Gamepad::Gamepad()
     if (mapCount <= 0) {
         mgo::Log::debug("Failed to load gamecontrollerdb.txt");
     } else {
-        mgo::Log::debug(std::format("Loaded {} mappings", mapCount));
+        mgo::Log::debug("Loaded {} mappings", mapCount);
     }
     int count = 0;
     // Any gamepads already connected?
@@ -195,7 +195,7 @@ std::vector<Event> Gamepad::getEvents()
             case SDL_EVENT_GAMEPAD_REMOVED:
                 {
                     auto id = sdlEvent.gdevice.which;
-                    mgo::Log::debug(std::format("Disconnected gamepad id {}", id));
+                    mgo::Log::debug("Disconnected gamepad id {}", id);
                     Event evt;
                     evt.eventType = EventType::Disconnect;
                     evt.joystickId = id;
@@ -212,7 +212,7 @@ std::vector<Event> Gamepad::getEvents()
                 {
                     auto id = sdlEvent.gdevice.which;
                     auto btn = static_cast<SDL_GamepadButton>(sdlEvent.gbutton.button);
-                    mgo::Log::debug(std::format("{} pressed", buttonName(btn)));
+                    mgo::Log::debug("{} pressed", buttonName(btn));
                     Event evt;
                     evt.eventType = EventType::ButtonPressed;
                     evt.joystickId = id;
@@ -225,7 +225,7 @@ std::vector<Event> Gamepad::getEvents()
                 {
                     auto id = sdlEvent.gdevice.which;
                     auto btn = static_cast<SDL_GamepadButton>(sdlEvent.gbutton.button);
-                    mgo::Log::debug(std::format("{} released", buttonName(btn)));
+                    mgo::Log::debug("{} released", buttonName(btn));
                     Event evt;
                     evt.eventType = EventType::ButtonReleased;
                     evt.joystickId = id;
@@ -324,7 +324,7 @@ void Gamepad::logConnection(SDL_Gamepad* pad, unsigned id)
     SDL_GUIDToString(guid, guid_str, sizeof(guid_str));
     char* mapping = SDL_GetGamepadMappingForID(id);
     if (mapping) {
-        mgo::Log::debug(std::format("Guid: {}, mapping: {}", guid_str, mapping));
+        mgo::Log::debug("Guid: {}, mapping: {}", guid_str, mapping);
         SDL_free(mapping); // mapping string is heap-allocated, we own it
     }
 }

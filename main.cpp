@@ -66,7 +66,7 @@ float analogueRound(float value)
 // as a snapshot of current state (doing this way may miss a button
 // press and subsequent release within the time window of a frame as
 // the release will overwrite the press status, but it's fine for this
-// test.
+// test).
 void collateGamepadEvents(gamepad::Gamepad& gamepad, GamepadStatus& status)
 {
     auto evts = gamepad.getEvents();
