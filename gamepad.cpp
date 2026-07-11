@@ -140,6 +140,13 @@ Gamepad::Gamepad()
     if (!SDL_Init(SDL_INIT_GAMEPAD)) {
         throw std::runtime_error("Could not initialise SDL for joystick");
     }
+    // gamecontrollerdb.txt is from https://github.com/mdqinc/SDL_GameControllerDB
+    int mapCount = SDL_AddGamepadMappingsFromFile("gamecontrollerdb.txt");
+    if (mapCount <= 0) {
+        mgo::Log::debug("Failed to load gamecontrollerdb.txt");
+    } else {
+        mgo::Log::debug(std::format("Loaded {} mappings", mapCount));
+    }
     int count = 0;
     // Any gamepads already connected?
     SDL_JoystickID* ids = SDL_GetGamepads(&count);
@@ -148,14 +155,9 @@ Gamepad::Gamepad()
         if (!pad) {
             continue;
         }
-        auto id = SDL_GetGamepadID(pad);
+        unsigned id = SDL_GetGamepadID(pad);
         m_gamepads[id] = pad;
-        mgo::Log::debug(
-            std::format(
-                "Connected {}\nType: {}\nId: {}",
-                SDL_GetGamepadName(pad),
-                gamepadTypeToString(SDL_GetGamepadType(pad)),
-                id));
+        logConnection(pad, id);
     }
     SDL_free(ids);
 }
@@ -182,12 +184,7 @@ std::vector<Event> Gamepad::getEvents()
                     }
                     auto id = SDL_GetGamepadID(pad);
                     m_gamepads[id] = pad;
-                    mgo::Log::debug(
-                        std::format(
-                            "Connected {}\nType: {}\nId: {}",
-                            SDL_GetGamepadName(pad),
-                            gamepadTypeToString(SDL_GetGamepadType(pad)),
-                            id));
+                    logConnection(pad, id);
                     Event evt;
                     evt.eventType = EventType::Connect;
                     evt.joystickId = id;
@@ -313,4 +310,22 @@ std::string Gamepad::getGamepadType()
     return gamepadTypeToString(SDL_GetGamepadType(gamepad));
 }
 
+void Gamepad::logConnection(SDL_Gamepad* pad, unsigned id)
+{
+    mgo::Log::debug(
+        std::format(
+            "Connected {}\nType: {}\nId: {}",
+            SDL_GetGamepadName(pad),
+            gamepadTypeToString(SDL_GetGamepadType(pad)),
+            id));
+
+    SDL_GUID guid = SDL_GetGamepadGUIDForID(id);
+    char guid_str[33]; // GUIDs are 16 bytes -> 32 hex chars + null terminator
+    SDL_GUIDToString(guid, guid_str, sizeof(guid_str));
+    char* mapping = SDL_GetGamepadMappingForID(id);
+    if (mapping) {
+        mgo::Log::debug(std::format("Guid: {}, mapping: {}", guid_str, mapping));
+        SDL_free(mapping); // mapping string is heap-allocated, we own it
+    }
+}
 } // namespace gamepad

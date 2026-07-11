@@ -79,6 +79,7 @@ public:
     std::string getGamepadType();
 
 private:
+    void logConnection(SDL_Gamepad* pad, unsigned gamepadId);
     std::unordered_map<SDL_JoystickID, SDL_Gamepad*> m_gamepads;
     AnalogueStatus m_analogueStatus;
     AnalogueStatus m_previousAnalogueStatus;
