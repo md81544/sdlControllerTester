@@ -3,6 +3,7 @@
 #include "log.h"
 #include "terminal.h"
 #include <chrono>
+#include <cmath>
 #include <concepts>
 #include <cstddef>
 #include <exception>
