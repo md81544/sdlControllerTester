@@ -28,7 +28,7 @@ void highlight(terminal::Terminal& term, std::size_t row, std::size_t col, T val
     } else {
         if (value) {
             term.setFgColour(terminal::Colour::BrightYellow);
-            term.printAt(row, col, " Press");
+            term.printAt(row, col, "  Pressed");
         }
     }
 }
@@ -186,7 +186,7 @@ int main()
         terminal::Terminal term(false);
         GamepadStatus status;
         for (;;) {
-            std::size_t row = 4;
+            std::size_t row = 5;
             term.cursorOff();
             collateGamepadEvents(gamepad, status);
             if (!gamepad.isGamePadAttached()) {
@@ -197,9 +197,11 @@ int main()
                 opts.mode = terminal::OutputMode::render;
                 term.messageBox(opts);
             } else {
-                constexpr std::size_t col = 18;
+                constexpr std::size_t col = 17;
                 term.printAt(1, 1, "SDL Gamepad Tester");
-                term.printAt(2, 1, "----------------------");
+                term.printAt(2, 1, "------------------");
+                term.printAt(4, 1, std::format("Gamepad type   :  {}", gamepad.getGamepadType()));
+                ++row;
                 term.printAt(row, 1, "Left stick  X  :");
                 highlight(term, row++, col, status.leftX);
                 term.printAt(row, 1, "Left stick  Y  :");

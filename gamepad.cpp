@@ -168,7 +168,7 @@ Gamepad::~Gamepad()
     SDL_Quit();
 }
 
-[[nodiscard]] std::vector<Event> Gamepad::getEvents()
+std::vector<Event> Gamepad::getEvents()
 {
     std::vector<Event> events;
     SDL_Event sdlEvent;
@@ -302,6 +302,15 @@ void Gamepad::rumble(uint16_t lowFreqIntensity, uint16_t highFreqIntensity, uint
     }
     auto gamepad = m_gamepads.begin()->second;
     SDL_RumbleGamepad(gamepad, lowFreqIntensity, highFreqIntensity, durationMs);
+}
+
+std::string Gamepad::getGamepadType()
+{
+    if (m_gamepads.empty()) {
+        return {};
+    }
+    auto gamepad = m_gamepads.begin()->second;
+    return gamepadTypeToString(SDL_GetGamepadType(gamepad));
 }
 
 } // namespace gamepad

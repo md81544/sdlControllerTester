@@ -76,6 +76,7 @@ public:
     [[nodiscard]] std::vector<Event> getEvents();
     bool isGamePadAttached();
     void rumble(uint16_t lowFreqIntensity, uint16_t highFreqIntensity, uint32_t durationMs);
+    std::string getGamepadType();
 
 private:
     std::unordered_map<SDL_JoystickID, SDL_Gamepad*> m_gamepads;
