@@ -140,13 +140,6 @@ Gamepad::Gamepad()
     if (!SDL_Init(SDL_INIT_GAMEPAD)) {
         throw std::runtime_error("Could not initialise SDL for joystick");
     }
-    // gamecontrollerdb.txt is from https://github.com/mdqinc/SDL_GameControllerDB
-    int mapCount = SDL_AddGamepadMappingsFromFile("gamecontrollerdb.txt");
-    if (mapCount <= 0) {
-        mgo::Log::debug("Failed to load gamecontrollerdb.txt");
-    } else {
-        mgo::Log::debug("Loaded {} mappings", mapCount);
-    }
     int count = 0;
     // Any gamepads already connected?
     SDL_JoystickID* ids = SDL_GetGamepads(&count);
@@ -183,6 +176,7 @@ std::vector<Event> Gamepad::getEvents()
                         break;
                     }
                     auto id = SDL_GetGamepadID(pad);
+                    mgo::Log::debug("Gamepad id {} connected", id);
                     m_gamepads[id] = pad;
                     logConnection(pad, id);
                     Event evt;
@@ -292,21 +286,25 @@ std::vector<Event> Gamepad::getEvents()
     return events;
 }
 
-void Gamepad::rumble(uint16_t lowFreqIntensity, uint16_t highFreqIntensity, uint32_t durationMs)
+void Gamepad::rumble(
+    uint32_t gamepadId,
+    uint16_t lowFreqIntensity,
+    uint16_t highFreqIntensity,
+    uint32_t durationMs)
 {
-    if (m_gamepads.empty()) {
+    if (m_gamepads.empty() || m_gamepads.find(gamepadId) == m_gamepads.end()) {
         return;
     }
-    auto gamepad = m_gamepads.begin()->second;
+    auto gamepad = m_gamepads[gamepadId];
     SDL_RumbleGamepad(gamepad, lowFreqIntensity, highFreqIntensity, durationMs);
 }
 
-std::string Gamepad::getGamepadType()
+std::string Gamepad::getGamepadType(uint32_t gamepadId)
 {
-    if (m_gamepads.empty()) {
+    if (m_gamepads.empty() || m_gamepads.find(gamepadId) == m_gamepads.end()) {
         return {};
     }
-    auto gamepad = m_gamepads.begin()->second;
+    auto gamepad = m_gamepads[gamepadId];
     return gamepadTypeToString(SDL_GetGamepadType(gamepad));
 }
 
@@ -332,6 +330,15 @@ void Gamepad::logConnection(SDL_Gamepad* pad, unsigned id)
 std::size_t Gamepad::getGamepadCount()
 {
     return m_gamepads.size();
+}
+
+std::vector<uint32_t> Gamepad::getGamePadIds()
+{
+    std::vector<uint32_t> rc;
+    for (const auto& pr : m_gamepads) {
+        rc.push_back(pr.first);
+    }
+    return rc;
 }
 
 } // namespace gamepad

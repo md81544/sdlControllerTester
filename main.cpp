@@ -6,10 +6,12 @@
 #include <cmath>
 #include <concepts>
 #include <cstddef>
+#include <cstdint>
 #include <exception>
 #include <format>
 #include <iostream>
 #include <thread>
+#include <unordered_map>
 
 template <typename T>
 concept FloatOrBool = std::same_as<T, float> || std::same_as<T, bool>;
@@ -35,6 +37,7 @@ void highlight(terminal::Terminal& term, std::size_t row, std::size_t col, T val
 }
 
 struct GamepadStatus {
+    std::string gamepadType;
     float leftX { 0.f };
     float leftY { 0.f };
     float rightX { 0.f };
@@ -73,61 +76,71 @@ float analogueRound(float value)
 // simply report on all gamepad events. In real use we might want to
 // ask the user to press a button to start to determine which gamepad
 // is in use if more than one is detected.
-void collateGamepadEvents(gamepad::Gamepad& gamepad, GamepadStatus& status)
+void collateGamepadEvents(
+    gamepad::Gamepad& gamepad,
+    std::unordered_map<uint32_t, GamepadStatus>& status)
 {
     auto evts = gamepad.getEvents();
     for (const auto& e : evts) {
+        if (e.eventType == gamepad::EventType::Disconnect) {
+            auto it = status.find(e.gamepadId);
+            if(it != status.end()){
+                status.erase(it);
+            }
+            continue;
+        }
+        status[e.gamepadId].gamepadType = gamepad.getGamepadType(e.gamepadId);
         if (e.eventType == gamepad::EventType::Analogue) {
-            status.leftX = analogueRound(e.analogue.leftX);
-            status.leftY = analogueRound(e.analogue.leftY);
-            status.rightX = analogueRound(e.analogue.rightX);
-            status.rightY = analogueRound(e.analogue.rightY);
-            status.rightTrigger = analogueRound(e.analogue.rightTrigger);
-            status.leftTrigger = analogueRound(e.analogue.leftTrigger);
+            status[e.gamepadId].leftX = analogueRound(e.analogue.leftX);
+            status[e.gamepadId].leftY = analogueRound(e.analogue.leftY);
+            status[e.gamepadId].rightX = analogueRound(e.analogue.rightX);
+            status[e.gamepadId].rightY = analogueRound(e.analogue.rightY);
+            status[e.gamepadId].rightTrigger = analogueRound(e.analogue.rightTrigger);
+            status[e.gamepadId].leftTrigger = analogueRound(e.analogue.leftTrigger);
         }
         if (e.eventType == gamepad::EventType::ButtonPressed) {
             switch (e.buttonType) {
                 case gamepad::ButtonType::South:
-                    status.south = true;
+                    status[e.gamepadId].south = true;
                     break;
                 case gamepad::ButtonType::North:
-                    status.north = true;
+                    status[e.gamepadId].north = true;
                     break;
                 case gamepad::ButtonType::East:
-                    status.east = true;
+                    status[e.gamepadId].east = true;
                     break;
                 case gamepad::ButtonType::West:
-                    status.west = true;
+                    status[e.gamepadId].west = true;
                     break;
                 case gamepad::ButtonType::Start:
-                    status.start = true;
+                    status[e.gamepadId].start = true;
                     break;
                 case gamepad::ButtonType::Back:
-                    status.back = true;
+                    status[e.gamepadId].back = true;
                     break;
                 case gamepad::ButtonType::LeftShoulder:
-                    status.leftShoulder = true;
+                    status[e.gamepadId].leftShoulder = true;
                     break;
                 case gamepad::ButtonType::RightShoulder:
-                    status.rightShoulder = true;
+                    status[e.gamepadId].rightShoulder = true;
                     break;
                 case gamepad::ButtonType::DPadDown:
-                    status.dPadDown = true;
+                    status[e.gamepadId].dPadDown = true;
                     break;
                 case gamepad::ButtonType::DPadLeft:
-                    status.dPadLeft = true;
+                    status[e.gamepadId].dPadLeft = true;
                     break;
                 case gamepad::ButtonType::DPadRight:
-                    status.dPadRight = true;
+                    status[e.gamepadId].dPadRight = true;
                     break;
                 case gamepad::ButtonType::DPadUp:
-                    status.dPadUp = true;
+                    status[e.gamepadId].dPadUp = true;
                     break;
                 case gamepad::ButtonType::LeftStickPress:
-                    status.leftStickPress = true;
+                    status[e.gamepadId].leftStickPress = true;
                     break;
                 case gamepad::ButtonType::RightStickPress:
-                    status.rightStickPress = true;
+                    status[e.gamepadId].rightStickPress = true;
                     break;
                 default:
             }
@@ -135,46 +148,46 @@ void collateGamepadEvents(gamepad::Gamepad& gamepad, GamepadStatus& status)
         if (e.eventType == gamepad::EventType::ButtonReleased) {
             switch (e.buttonType) {
                 case gamepad::ButtonType::South:
-                    status.south = false;
+                    status[e.gamepadId].south = false;
                     break;
                 case gamepad::ButtonType::North:
-                    status.north = false;
+                    status[e.gamepadId].north = false;
                     break;
                 case gamepad::ButtonType::East:
-                    status.east = false;
+                    status[e.gamepadId].east = false;
                     break;
                 case gamepad::ButtonType::West:
-                    status.west = false;
+                    status[e.gamepadId].west = false;
                     break;
                 case gamepad::ButtonType::Start:
-                    status.start = false;
+                    status[e.gamepadId].start = false;
                     break;
                 case gamepad::ButtonType::Back:
-                    status.back = false;
+                    status[e.gamepadId].back = false;
                     break;
                 case gamepad::ButtonType::LeftShoulder:
-                    status.leftShoulder = false;
+                    status[e.gamepadId].leftShoulder = false;
                     break;
                 case gamepad::ButtonType::RightShoulder:
-                    status.rightShoulder = false;
+                    status[e.gamepadId].rightShoulder = false;
                     break;
                 case gamepad::ButtonType::DPadDown:
-                    status.dPadDown = false;
+                    status[e.gamepadId].dPadDown = false;
                     break;
                 case gamepad::ButtonType::DPadLeft:
-                    status.dPadLeft = false;
+                    status[e.gamepadId].dPadLeft = false;
                     break;
                 case gamepad::ButtonType::DPadRight:
-                    status.dPadRight = false;
+                    status[e.gamepadId].dPadRight = false;
                     break;
                 case gamepad::ButtonType::DPadUp:
-                    status.dPadUp = false;
+                    status[e.gamepadId].dPadUp = false;
                     break;
                 case gamepad::ButtonType::LeftStickPress:
-                    status.leftStickPress = false;
+                    status[e.gamepadId].leftStickPress = false;
                     break;
                 case gamepad::ButtonType::RightStickPress:
-                    status.rightStickPress = false;
+                    status[e.gamepadId].rightStickPress = false;
                     break;
                 default:
             }
@@ -191,13 +204,18 @@ int main()
             false); // false = don't append (i.e. overwrite)
         gamepad::Gamepad gamepad;
         terminal::Terminal term(false);
-        GamepadStatus status;
+        std::unordered_map<uint32_t, GamepadStatus> status;
+        constexpr std::size_t statusStartRow = 4;
+        std::size_t row = statusStartRow;
         for (;;) {
-            std::size_t row = 5;
             term.cursorOff();
-            // This calls gamepad.getEvents():
+            // This calls gamepad.getEvents()
+            // getEvents() should be called each iteration to clear out
+            // any unwanted events, and watch for new connections.
             collateGamepadEvents(gamepad, status);
-            if (gamepad.getGamepadCount() == 0) {
+            // Get a list of gamepads attached:
+            auto vecIds = gamepad.getGamePadIds();
+            if (vecIds.empty()) {
                 terminal::MessageBoxOptions opts;
                 opts.message = "Please attach a gamepad!";
                 opts.col = 1;
@@ -205,51 +223,60 @@ int main()
                 opts.mode = terminal::OutputMode::render;
                 term.messageBox(opts);
             } else {
-                constexpr std::size_t col = 17;
                 term.printAt(1, 1, "SDL Gamepad Tester");
                 term.printAt(2, 1, "------------------");
-                term.printAt(4, 1, std::format("Gamepad type   :  {}", gamepad.getGamepadType()));
-                ++row;
-                term.printAt(row, 1, "Left stick  X  :");
-                highlight(term, row++, col, status.leftX);
-                term.printAt(row, 1, "Left stick  Y  :");
-                highlight(term, row++, col, status.leftY);
-                term.printAt(row, 1, "Right stick X  :");
-                highlight(term, row++, col, status.rightX);
-                term.printAt(row, 1, "Right stick Y  :");
-                highlight(term, row++, col, status.rightY);
-                term.printAt(row, 1, "R stick press  :");
-                highlight(term, row++, col, status.rightStickPress);
-                term.printAt(row, 1, "L stick press  :");
-                highlight(term, row++, col, status.leftStickPress);
-                term.printAt(row, 1, "Right trigger  :");
-                highlight(term, row++, col, status.rightTrigger);
-                term.printAt(row, 1, "Left trigger   :");
-                highlight(term, row++, col, status.leftTrigger);
-                term.printAt(row, 1, "Right shoulder :");
-                highlight(term, row++, col, status.rightShoulder);
-                term.printAt(row, 1, "Left shoulder  :");
-                highlight(term, row++, col, status.leftShoulder);
-                term.printAt(row, 1, "South button   :");
-                highlight(term, row++, col, status.south);
-                term.printAt(row, 1, "North button   :");
-                highlight(term, row++, col, status.north);
-                term.printAt(row, 1, "East button    :");
-                highlight(term, row++, col, status.east);
-                term.printAt(row, 1, "West button    :");
-                highlight(term, row++, col, status.west);
-                term.printAt(row, 1, "DPad down      :");
-                highlight(term, row++, col, status.dPadDown);
-                term.printAt(row, 1, "DPad up        :");
-                highlight(term, row++, col, status.dPadUp);
-                term.printAt(row, 1, "Dpad left      :");
-                highlight(term, row++, col, status.dPadLeft);
-                term.printAt(row, 1, "Dpad right     :");
-                highlight(term, row++, col, status.dPadRight);
-                term.printAt(row, 1, "Start          :");
-                highlight(term, row++, col, status.start);
-                term.printAt(row, 1, "Back           :");
-                highlight(term, row++, col, status.back);
+                row = statusStartRow;
+                term.printAt(row++, 1, "Gamepad type   :");
+                term.printAt(row++, 1, "Gamepad Id     :");
+                term.printAt(row++, 1, "Left stick  X  :");
+                term.printAt(row++, 1, "Left stick  Y  :");
+                term.printAt(row++, 1, "Right stick X  :");
+                term.printAt(row++, 1, "Right stick Y  :");
+                term.printAt(row++, 1, "R stick press  :");
+                term.printAt(row++, 1, "L stick press  :");
+                term.printAt(row++, 1, "Right trigger  :");
+                term.printAt(row++, 1, "Left trigger   :");
+                term.printAt(row++, 1, "Right shoulder :");
+                term.printAt(row++, 1, "Left shoulder  :");
+                term.printAt(row++, 1, "South button   :");
+                term.printAt(row++, 1, "North button   :");
+                term.printAt(row++, 1, "East button    :");
+                term.printAt(row++, 1, "West button    :");
+                term.printAt(row++, 1, "DPad down      :");
+                term.printAt(row++, 1, "DPad up        :");
+                term.printAt(row++, 1, "Dpad left      :");
+                term.printAt(row++, 1, "Dpad right     :");
+                term.printAt(row++, 1, "Start          :");
+                term.printAt(row++, 1, "Back           :");
+
+                // Now iterate over all gamepads' statuses:
+                std::size_t col = 17;
+                for (const auto& s : status) {
+                    row = statusStartRow;
+                    term.printAt(row++, col + 2, std::format("{:.19}", s.second.gamepadType));
+                    term.printAt(row++, col + 2, std::format("{}", s.first));
+                    highlight(term, row++, col, s.second.leftX);
+                    highlight(term, row++, col, s.second.leftY);
+                    highlight(term, row++, col, s.second.rightX);
+                    highlight(term, row++, col, s.second.rightY);
+                    highlight(term, row++, col, s.second.rightStickPress);
+                    highlight(term, row++, col, s.second.leftStickPress);
+                    highlight(term, row++, col, s.second.rightTrigger);
+                    highlight(term, row++, col, s.second.leftTrigger);
+                    highlight(term, row++, col, s.second.rightShoulder);
+                    highlight(term, row++, col, s.second.leftShoulder);
+                    highlight(term, row++, col, s.second.south);
+                    highlight(term, row++, col, s.second.north);
+                    highlight(term, row++, col, s.second.east);
+                    highlight(term, row++, col, s.second.west);
+                    highlight(term, row++, col, s.second.dPadDown);
+                    highlight(term, row++, col, s.second.dPadUp);
+                    highlight(term, row++, col, s.second.dPadLeft);
+                    highlight(term, row++, col, s.second.dPadRight);
+                    highlight(term, row++, col, s.second.start);
+                    highlight(term, row++, col, s.second.back);
+                    col += 20;
+                }
 
                 ++row; // bit of space before Esc message
             }

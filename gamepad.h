@@ -73,15 +73,18 @@ public:
     Gamepad();
     ~Gamepad();
     // This should be called once per game frame. It returns a vector
-    // of events that have happened since the last call.
+    // of events that have happened since the last call. Note the event
+    // contains the pad id so it's up to the caller to discard any
+    // that they are not interested in (e.g. a second device)
     [[nodiscard]] std::vector<Event> getEvents();
-    void rumble(uint16_t lowFreqIntensity, uint16_t highFreqIntensity, uint32_t durationMs);
-    std::string getGamepadType();
+    void rumble(uint32_t gamepadId, uint16_t lowFreqIntensity, uint16_t highFreqIntensity, uint32_t durationMs);
+    std::string getGamepadType(uint32_t gamepadId);
     // Return number of gamepads connected. If more than one is connected,
-    // it's recommended to ask the user to press a button to start the application,
+    // it's advisable to ask the user to press a button to start the application,
     // thereby determining which gamepadId is being used, and filter events on just that
     // gamepadId.
     std::size_t getGamepadCount();
+    [[nodiscard]] std::vector<uint32_t> getGamePadIds();
 
 private:
     void logConnection(SDL_Gamepad* pad, unsigned gamepadId);
