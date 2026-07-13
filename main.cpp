@@ -84,7 +84,7 @@ void collateGamepadEvents(
     for (const auto& e : evts) {
         if (e.eventType == gamepad::EventType::Disconnect) {
             auto it = status.find(e.gamepadId);
-            if(it != status.end()){
+            if (it != status.end()) {
                 status.erase(it);
             }
             continue;
@@ -215,6 +215,7 @@ int main()
             collateGamepadEvents(gamepad, status);
             // Get a list of gamepads attached:
             auto vecIds = gamepad.getGamePadIds();
+            row = statusStartRow;
             if (vecIds.empty()) {
                 terminal::MessageBoxOptions opts;
                 opts.message = "Please attach a gamepad!";
@@ -225,7 +226,6 @@ int main()
             } else {
                 term.printAt(1, 1, "SDL Gamepad Tester");
                 term.printAt(2, 1, "------------------");
-                row = statusStartRow;
                 term.printAt(row++, 1, "Gamepad type   :");
                 term.printAt(row++, 1, "Gamepad Id     :");
                 term.printAt(row++, 1, "Left stick  X  :");
@@ -276,9 +276,13 @@ int main()
                     highlight(term, row++, col, s.second.start);
                     highlight(term, row++, col, s.second.back);
                     col += 20;
+                    if (s.second.rightStickPress && s.second.leftStickPress) {
+                        gamepad.rumble(s.first, 0xFFFF, 0xFF, 50);
+                    }
                 }
 
                 ++row; // bit of space before Esc message
+                term.printAt(row++, 1, "Press BOTH joyticks for rumble test");
             }
             term.printAt(row, 1, "Press Escape to quit");
             term.render();
