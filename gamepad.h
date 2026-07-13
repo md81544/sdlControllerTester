@@ -32,6 +32,18 @@ enum class ButtonType {
     DPadUp,
     LeftStickPress,
     RightStickPress,
+    Guide,
+    Misc1,
+    Misc2,
+    Misc3,
+    Misc4,
+    Misc5,
+    Misc6,
+    LeftPaddle1,
+    LeftPaddle2,
+    RightPaddle1,
+    RightPaddle2,
+    Touchpad,
     Unknown,
     NotApplicable,
 };
@@ -77,7 +89,11 @@ public:
     // contains the pad id so it's up to the caller to discard any
     // that they are not interested in (e.g. a second device)
     [[nodiscard]] std::vector<Event> getEvents();
-    void rumble(uint32_t gamepadId, uint16_t lowFreqIntensity, uint16_t highFreqIntensity, uint32_t durationMs);
+    void rumble(
+        uint32_t gamepadId,
+        uint16_t lowFreqIntensity,
+        uint16_t highFreqIntensity,
+        uint32_t durationMs);
     std::string getGamepadType(uint32_t gamepadId);
     // Return number of gamepads connected. If more than one is connected,
     // it's advisable to ask the user to press a button to start the application,
@@ -85,6 +101,7 @@ public:
     // gamepadId.
     std::size_t getGamepadCount();
     [[nodiscard]] std::vector<uint32_t> getGamePadIds();
+    std::string buttonTypeToString(ButtonType btn);
 
 private:
     void logConnection(SDL_Gamepad* pad, unsigned gamepadId);

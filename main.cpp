@@ -58,7 +58,65 @@ struct GamepadStatus {
     bool dPadLeft { false };
     bool dPadRight { false };
     bool dPadUp { false };
+    bool guide { false };
+    bool misc1 { false };
+    bool misc2 { false };
+    bool misc3 { false };
+    bool misc4 { false };
+    bool misc5 { false };
+    bool misc6 { false };
+    bool leftPaddle1 { false };
+    bool leftPaddle2 { false };
+    bool rightPaddle1 { false };
+    bool rightPaddle2 { false };
+    bool touchpad { false };
 };
+
+// Print lesser-used button name
+// if multiple buttons are pressed at once
+// only one will be printed
+void otherButton(
+    gamepad::Gamepad& gamepad,
+    terminal::Terminal& term,
+    std::size_t row,
+    std::size_t col,
+    const GamepadStatus& status)
+{
+    std::string btnName;
+    if (status.leftPaddle1) {
+        btnName = gamepad.buttonTypeToString(gamepad::ButtonType::LeftPaddle1);
+    }
+    if (status.leftPaddle2) {
+        btnName = gamepad.buttonTypeToString(gamepad::ButtonType::LeftPaddle2);
+    }
+    if (status.rightPaddle1) {
+        btnName = gamepad.buttonTypeToString(gamepad::ButtonType::RightPaddle1);
+    }
+    if (status.rightPaddle2) {
+        btnName = gamepad.buttonTypeToString(gamepad::ButtonType::RightPaddle2);
+    }
+    if (status.misc1) {
+        btnName = gamepad.buttonTypeToString(gamepad::ButtonType::Misc1);
+    }
+    if (status.misc2) {
+        btnName = gamepad.buttonTypeToString(gamepad::ButtonType::Misc2);
+    }
+    if (status.misc3) {
+        btnName = gamepad.buttonTypeToString(gamepad::ButtonType::Misc3);
+    }
+    if (status.misc4) {
+        btnName = gamepad.buttonTypeToString(gamepad::ButtonType::Misc4);
+    }
+    if (status.misc5) {
+        btnName = gamepad.buttonTypeToString(gamepad::ButtonType::Misc5);
+    }
+    if (status.misc6) {
+        btnName = gamepad.buttonTypeToString(gamepad::ButtonType::Misc6);
+    }
+    terminal::ColourGuard cg(&term);
+    term.setFgColour(terminal::Colour::BrightYellow);
+    term.printAt(row, col, btnName);
+}
 
 float analogueRound(float value)
 {
@@ -142,6 +200,42 @@ void collateGamepadEvents(
                 case gamepad::ButtonType::RightStickPress:
                     status[e.gamepadId].rightStickPress = true;
                     break;
+                case gamepad::ButtonType::Guide:
+                    status[e.gamepadId].guide = true;
+                    break;
+                case gamepad::ButtonType::Misc1:
+                    status[e.gamepadId].misc1 = true;
+                    break;
+                case gamepad::ButtonType::Misc2:
+                    status[e.gamepadId].misc2 = true;
+                    break;
+                case gamepad::ButtonType::Misc3:
+                    status[e.gamepadId].misc3 = true;
+                    break;
+                case gamepad::ButtonType::Misc4:
+                    status[e.gamepadId].misc4 = true;
+                    break;
+                case gamepad::ButtonType::Misc5:
+                    status[e.gamepadId].misc5 = true;
+                    break;
+                case gamepad::ButtonType::Misc6:
+                    status[e.gamepadId].misc6 = true;
+                    break;
+                case gamepad::ButtonType::LeftPaddle1:
+                    status[e.gamepadId].leftPaddle1 = true;
+                    break;
+                case gamepad::ButtonType::LeftPaddle2:
+                    status[e.gamepadId].leftPaddle2 = true;
+                    break;
+                case gamepad::ButtonType::RightPaddle1:
+                    status[e.gamepadId].rightPaddle1 = true;
+                    break;
+                case gamepad::ButtonType::RightPaddle2:
+                    status[e.gamepadId].rightPaddle2 = true;
+                    break;
+                case gamepad::ButtonType::Touchpad:
+                    status[e.gamepadId].touchpad = true;
+                    break;
                 default:
             }
         }
@@ -188,6 +282,42 @@ void collateGamepadEvents(
                     break;
                 case gamepad::ButtonType::RightStickPress:
                     status[e.gamepadId].rightStickPress = false;
+                    break;
+                case gamepad::ButtonType::Guide:
+                    status[e.gamepadId].guide = false;
+                    break;
+                case gamepad::ButtonType::Misc1:
+                    status[e.gamepadId].misc1 = false;
+                    break;
+                case gamepad::ButtonType::Misc2:
+                    status[e.gamepadId].misc2 = false;
+                    break;
+                case gamepad::ButtonType::Misc3:
+                    status[e.gamepadId].misc3 = false;
+                    break;
+                case gamepad::ButtonType::Misc4:
+                    status[e.gamepadId].misc4 = false;
+                    break;
+                case gamepad::ButtonType::Misc5:
+                    status[e.gamepadId].misc5 = false;
+                    break;
+                case gamepad::ButtonType::Misc6:
+                    status[e.gamepadId].misc6 = false;
+                    break;
+                case gamepad::ButtonType::LeftPaddle1:
+                    status[e.gamepadId].leftPaddle1 = false;
+                    break;
+                case gamepad::ButtonType::LeftPaddle2:
+                    status[e.gamepadId].leftPaddle2 = false;
+                    break;
+                case gamepad::ButtonType::RightPaddle1:
+                    status[e.gamepadId].rightPaddle1 = false;
+                    break;
+                case gamepad::ButtonType::RightPaddle2:
+                    status[e.gamepadId].rightPaddle2 = false;
+                    break;
+                case gamepad::ButtonType::Touchpad:
+                    status[e.gamepadId].touchpad = false;
                     break;
                 default:
             }
@@ -248,6 +378,9 @@ int main()
                 term.printAt(row++, 1, "Dpad right     :");
                 term.printAt(row++, 1, "Start          :");
                 term.printAt(row++, 1, "Back           :");
+                term.printAt(row++, 1, "Guide          :");
+                term.printAt(row++, 1, "Touchpad       :");
+                term.printAt(row++, 1, "Other          :");
 
                 // Now iterate over all gamepads' statuses:
                 std::size_t col = 17;
@@ -275,6 +408,9 @@ int main()
                     highlight(term, row++, col, s.second.dPadRight);
                     highlight(term, row++, col, s.second.start);
                     highlight(term, row++, col, s.second.back);
+                    highlight(term, row++, col, s.second.guide);
+                    highlight(term, row++, col, s.second.touchpad);
+                    otherButton(gamepad, term, row++, col + 2, s.second);
                     col += 20;
                     if (s.second.rightStickPress && s.second.leftStickPress) {
                         gamepad.rumble(s.first, 0xFFFF, 0xFF, 50);

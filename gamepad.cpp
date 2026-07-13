@@ -90,7 +90,30 @@ const char* buttonName(SDL_GamepadButton button)
             return "D-pad Left";
         case SDL_GAMEPAD_BUTTON_DPAD_RIGHT:
             return "D-pad Right";
-
+        case SDL_GAMEPAD_BUTTON_GUIDE:
+            return "Guide";
+        case SDL_GAMEPAD_BUTTON_MISC1:
+            return "Misc 1";
+        case SDL_GAMEPAD_BUTTON_MISC2:
+            return "Misc 2";
+        case SDL_GAMEPAD_BUTTON_MISC3:
+            return "Misc 3";
+        case SDL_GAMEPAD_BUTTON_MISC4:
+            return "Misc 4";
+        case SDL_GAMEPAD_BUTTON_MISC5:
+            return "Misc 5";
+        case SDL_GAMEPAD_BUTTON_MISC6:
+            return "Misc 6";
+        case SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1:
+            return "Right paddle 1";
+        case SDL_GAMEPAD_BUTTON_LEFT_PADDLE1:
+            return "Left paddle 1";
+        case SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2:
+            return "Right paddle 2";
+        case SDL_GAMEPAD_BUTTON_LEFT_PADDLE2:
+            return "Left paddle 2";
+        case SDL_GAMEPAD_BUTTON_TOUCHPAD:
+            return "Touchpad";
         default:
             return "Other";
     }
@@ -128,8 +151,93 @@ ButtonType sdlToButtonType(SDL_GamepadButton button)
             return ButtonType::LeftStickPress;
         case SDL_GAMEPAD_BUTTON_RIGHT_STICK:
             return ButtonType::RightStickPress;
+        case SDL_GAMEPAD_BUTTON_GUIDE:
+            return ButtonType::Guide;
+        case SDL_GAMEPAD_BUTTON_MISC1:
+            return ButtonType::Misc1;
+        case SDL_GAMEPAD_BUTTON_MISC2:
+            return ButtonType::Misc2;
+        case SDL_GAMEPAD_BUTTON_MISC3:
+            return ButtonType::Misc3;
+        case SDL_GAMEPAD_BUTTON_MISC4:
+            return ButtonType::Misc4;
+        case SDL_GAMEPAD_BUTTON_MISC5:
+            return ButtonType::Misc5;
+        case SDL_GAMEPAD_BUTTON_MISC6:
+            return ButtonType::Misc6;
+        case SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1:
+            return ButtonType::RightPaddle1;
+        case SDL_GAMEPAD_BUTTON_LEFT_PADDLE1:
+            return ButtonType::LeftPaddle1;
+        case SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2:
+            return ButtonType::RightPaddle2;
+        case SDL_GAMEPAD_BUTTON_LEFT_PADDLE2:
+            return ButtonType::LeftPaddle2;
+        case SDL_GAMEPAD_BUTTON_TOUCHPAD:
+            return ButtonType::Touchpad;
         default:
             return ButtonType::Unknown;
+    }
+}
+
+SDL_GamepadButton buttonTypeToSdl(ButtonType button)
+{
+
+    switch (button) {
+        case ButtonType::South:
+            return SDL_GAMEPAD_BUTTON_SOUTH;
+        case ButtonType::East:
+            return SDL_GAMEPAD_BUTTON_EAST;
+        case ButtonType::West:
+            return SDL_GAMEPAD_BUTTON_WEST;
+        case ButtonType::North:
+            return SDL_GAMEPAD_BUTTON_NORTH;
+        case ButtonType::Start:
+            return SDL_GAMEPAD_BUTTON_START;
+        case ButtonType::Back:
+            return SDL_GAMEPAD_BUTTON_BACK;
+        case ButtonType::LeftShoulder:
+            return SDL_GAMEPAD_BUTTON_LEFT_SHOULDER;
+        case ButtonType::RightShoulder:
+            return SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER;
+        case ButtonType::DPadUp:
+            return SDL_GAMEPAD_BUTTON_DPAD_UP;
+        case ButtonType::DPadDown:
+            return SDL_GAMEPAD_BUTTON_DPAD_DOWN;
+        case ButtonType::DPadLeft:
+            return SDL_GAMEPAD_BUTTON_DPAD_LEFT;
+        case ButtonType::DPadRight:
+            return SDL_GAMEPAD_BUTTON_DPAD_RIGHT;
+        case ButtonType::LeftStickPress:
+            return SDL_GAMEPAD_BUTTON_LEFT_STICK;
+        case ButtonType::RightStickPress:
+            return SDL_GAMEPAD_BUTTON_RIGHT_STICK;
+        case ButtonType::Guide:
+            return SDL_GAMEPAD_BUTTON_GUIDE;
+        case ButtonType::Misc1:
+            return SDL_GAMEPAD_BUTTON_MISC1;
+        case ButtonType::Misc2:
+            return SDL_GAMEPAD_BUTTON_MISC2;
+        case ButtonType::Misc3:
+            return SDL_GAMEPAD_BUTTON_MISC3;
+        case ButtonType::Misc4:
+            return SDL_GAMEPAD_BUTTON_MISC4;
+        case ButtonType::Misc5:
+            return SDL_GAMEPAD_BUTTON_MISC5;
+        case ButtonType::Misc6:
+            return SDL_GAMEPAD_BUTTON_MISC6;
+        case ButtonType::RightPaddle1:
+            return SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1;
+        case ButtonType::LeftPaddle1:
+            return SDL_GAMEPAD_BUTTON_LEFT_PADDLE1;
+        case ButtonType::RightPaddle2:
+            return SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2;
+        case ButtonType::LeftPaddle2:
+            return SDL_GAMEPAD_BUTTON_LEFT_PADDLE2;
+        case ButtonType::Touchpad:
+            return SDL_GAMEPAD_BUTTON_TOUCHPAD;
+        default:
+            return SDL_GAMEPAD_BUTTON_INVALID;
     }
 }
 
@@ -339,6 +447,12 @@ std::vector<uint32_t> Gamepad::getGamePadIds()
         rc.push_back(pr.first);
     }
     return rc;
+}
+
+std::string Gamepad::buttonTypeToString(ButtonType btn)
+{
+    auto sdlBtn = buttonTypeToSdl(btn);
+    return buttonName(sdlBtn);
 }
 
 } // namespace gamepad
