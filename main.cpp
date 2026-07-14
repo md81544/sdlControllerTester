@@ -123,6 +123,94 @@ float analogueRound(float value)
     return std::round(value * 100.f) / 100.f;
 }
 
+void changeStatus(
+    std::unordered_map<uint32_t, GamepadStatus>& status,
+    gamepad::Event const& e,
+    bool value)
+{
+    switch (e.buttonType) {
+        case gamepad::ButtonType::South:
+            status[e.gamepadId].south = value;
+            break;
+        case gamepad::ButtonType::North:
+            status[e.gamepadId].north = value;
+            break;
+        case gamepad::ButtonType::East:
+            status[e.gamepadId].east = value;
+            break;
+        case gamepad::ButtonType::West:
+            status[e.gamepadId].west = value;
+            break;
+        case gamepad::ButtonType::Start:
+            status[e.gamepadId].start = value;
+            break;
+        case gamepad::ButtonType::Back:
+            status[e.gamepadId].back = value;
+            break;
+        case gamepad::ButtonType::LeftShoulder:
+            status[e.gamepadId].leftShoulder = value;
+            break;
+        case gamepad::ButtonType::RightShoulder:
+            status[e.gamepadId].rightShoulder = value;
+            break;
+        case gamepad::ButtonType::DPadDown:
+            status[e.gamepadId].dPadDown = value;
+            break;
+        case gamepad::ButtonType::DPadLeft:
+            status[e.gamepadId].dPadLeft = value;
+            break;
+        case gamepad::ButtonType::DPadRight:
+            status[e.gamepadId].dPadRight = value;
+            break;
+        case gamepad::ButtonType::DPadUp:
+            status[e.gamepadId].dPadUp = value;
+            break;
+        case gamepad::ButtonType::LeftStickPress:
+            status[e.gamepadId].leftStickPress = value;
+            break;
+        case gamepad::ButtonType::RightStickPress:
+            status[e.gamepadId].rightStickPress = value;
+            break;
+        case gamepad::ButtonType::Guide:
+            status[e.gamepadId].guide = value;
+            break;
+        case gamepad::ButtonType::Misc1:
+            status[e.gamepadId].misc1 = value;
+            break;
+        case gamepad::ButtonType::Misc2:
+            status[e.gamepadId].misc2 = value;
+            break;
+        case gamepad::ButtonType::Misc3:
+            status[e.gamepadId].misc3 = value;
+            break;
+        case gamepad::ButtonType::Misc4:
+            status[e.gamepadId].misc4 = value;
+            break;
+        case gamepad::ButtonType::Misc5:
+            status[e.gamepadId].misc5 = value;
+            break;
+        case gamepad::ButtonType::Misc6:
+            status[e.gamepadId].misc6 = value;
+            break;
+        case gamepad::ButtonType::LeftPaddle1:
+            status[e.gamepadId].leftPaddle1 = value;
+            break;
+        case gamepad::ButtonType::LeftPaddle2:
+            status[e.gamepadId].leftPaddle2 = value;
+            break;
+        case gamepad::ButtonType::RightPaddle1:
+            status[e.gamepadId].rightPaddle1 = value;
+            break;
+        case gamepad::ButtonType::RightPaddle2:
+            status[e.gamepadId].rightPaddle2 = value;
+            break;
+        case gamepad::ButtonType::Touchpad:
+            status[e.gamepadId].touchpad = value;
+            break;
+        default:
+    }
+}
+
 // Consume all gamepad events since last call and populate status
 // as a snapshot of current state (doing this way may miss a button
 // press and subsequent release within the time window of a frame as
@@ -157,170 +245,10 @@ void collateGamepadEvents(
             status[e.gamepadId].leftTrigger = analogueRound(e.analogue.leftTrigger);
         }
         if (e.eventType == gamepad::EventType::ButtonPressed) {
-            switch (e.buttonType) {
-                case gamepad::ButtonType::South:
-                    status[e.gamepadId].south = true;
-                    break;
-                case gamepad::ButtonType::North:
-                    status[e.gamepadId].north = true;
-                    break;
-                case gamepad::ButtonType::East:
-                    status[e.gamepadId].east = true;
-                    break;
-                case gamepad::ButtonType::West:
-                    status[e.gamepadId].west = true;
-                    break;
-                case gamepad::ButtonType::Start:
-                    status[e.gamepadId].start = true;
-                    break;
-                case gamepad::ButtonType::Back:
-                    status[e.gamepadId].back = true;
-                    break;
-                case gamepad::ButtonType::LeftShoulder:
-                    status[e.gamepadId].leftShoulder = true;
-                    break;
-                case gamepad::ButtonType::RightShoulder:
-                    status[e.gamepadId].rightShoulder = true;
-                    break;
-                case gamepad::ButtonType::DPadDown:
-                    status[e.gamepadId].dPadDown = true;
-                    break;
-                case gamepad::ButtonType::DPadLeft:
-                    status[e.gamepadId].dPadLeft = true;
-                    break;
-                case gamepad::ButtonType::DPadRight:
-                    status[e.gamepadId].dPadRight = true;
-                    break;
-                case gamepad::ButtonType::DPadUp:
-                    status[e.gamepadId].dPadUp = true;
-                    break;
-                case gamepad::ButtonType::LeftStickPress:
-                    status[e.gamepadId].leftStickPress = true;
-                    break;
-                case gamepad::ButtonType::RightStickPress:
-                    status[e.gamepadId].rightStickPress = true;
-                    break;
-                case gamepad::ButtonType::Guide:
-                    status[e.gamepadId].guide = true;
-                    break;
-                case gamepad::ButtonType::Misc1:
-                    status[e.gamepadId].misc1 = true;
-                    break;
-                case gamepad::ButtonType::Misc2:
-                    status[e.gamepadId].misc2 = true;
-                    break;
-                case gamepad::ButtonType::Misc3:
-                    status[e.gamepadId].misc3 = true;
-                    break;
-                case gamepad::ButtonType::Misc4:
-                    status[e.gamepadId].misc4 = true;
-                    break;
-                case gamepad::ButtonType::Misc5:
-                    status[e.gamepadId].misc5 = true;
-                    break;
-                case gamepad::ButtonType::Misc6:
-                    status[e.gamepadId].misc6 = true;
-                    break;
-                case gamepad::ButtonType::LeftPaddle1:
-                    status[e.gamepadId].leftPaddle1 = true;
-                    break;
-                case gamepad::ButtonType::LeftPaddle2:
-                    status[e.gamepadId].leftPaddle2 = true;
-                    break;
-                case gamepad::ButtonType::RightPaddle1:
-                    status[e.gamepadId].rightPaddle1 = true;
-                    break;
-                case gamepad::ButtonType::RightPaddle2:
-                    status[e.gamepadId].rightPaddle2 = true;
-                    break;
-                case gamepad::ButtonType::Touchpad:
-                    status[e.gamepadId].touchpad = true;
-                    break;
-                default:
-            }
+            changeStatus(status, e, true);
         }
         if (e.eventType == gamepad::EventType::ButtonReleased) {
-            switch (e.buttonType) {
-                case gamepad::ButtonType::South:
-                    status[e.gamepadId].south = false;
-                    break;
-                case gamepad::ButtonType::North:
-                    status[e.gamepadId].north = false;
-                    break;
-                case gamepad::ButtonType::East:
-                    status[e.gamepadId].east = false;
-                    break;
-                case gamepad::ButtonType::West:
-                    status[e.gamepadId].west = false;
-                    break;
-                case gamepad::ButtonType::Start:
-                    status[e.gamepadId].start = false;
-                    break;
-                case gamepad::ButtonType::Back:
-                    status[e.gamepadId].back = false;
-                    break;
-                case gamepad::ButtonType::LeftShoulder:
-                    status[e.gamepadId].leftShoulder = false;
-                    break;
-                case gamepad::ButtonType::RightShoulder:
-                    status[e.gamepadId].rightShoulder = false;
-                    break;
-                case gamepad::ButtonType::DPadDown:
-                    status[e.gamepadId].dPadDown = false;
-                    break;
-                case gamepad::ButtonType::DPadLeft:
-                    status[e.gamepadId].dPadLeft = false;
-                    break;
-                case gamepad::ButtonType::DPadRight:
-                    status[e.gamepadId].dPadRight = false;
-                    break;
-                case gamepad::ButtonType::DPadUp:
-                    status[e.gamepadId].dPadUp = false;
-                    break;
-                case gamepad::ButtonType::LeftStickPress:
-                    status[e.gamepadId].leftStickPress = false;
-                    break;
-                case gamepad::ButtonType::RightStickPress:
-                    status[e.gamepadId].rightStickPress = false;
-                    break;
-                case gamepad::ButtonType::Guide:
-                    status[e.gamepadId].guide = false;
-                    break;
-                case gamepad::ButtonType::Misc1:
-                    status[e.gamepadId].misc1 = false;
-                    break;
-                case gamepad::ButtonType::Misc2:
-                    status[e.gamepadId].misc2 = false;
-                    break;
-                case gamepad::ButtonType::Misc3:
-                    status[e.gamepadId].misc3 = false;
-                    break;
-                case gamepad::ButtonType::Misc4:
-                    status[e.gamepadId].misc4 = false;
-                    break;
-                case gamepad::ButtonType::Misc5:
-                    status[e.gamepadId].misc5 = false;
-                    break;
-                case gamepad::ButtonType::Misc6:
-                    status[e.gamepadId].misc6 = false;
-                    break;
-                case gamepad::ButtonType::LeftPaddle1:
-                    status[e.gamepadId].leftPaddle1 = false;
-                    break;
-                case gamepad::ButtonType::LeftPaddle2:
-                    status[e.gamepadId].leftPaddle2 = false;
-                    break;
-                case gamepad::ButtonType::RightPaddle1:
-                    status[e.gamepadId].rightPaddle1 = false;
-                    break;
-                case gamepad::ButtonType::RightPaddle2:
-                    status[e.gamepadId].rightPaddle2 = false;
-                    break;
-                case gamepad::ButtonType::Touchpad:
-                    status[e.gamepadId].touchpad = false;
-                    break;
-                default:
-            }
+            changeStatus(status, e, false);
         }
     }
 }
