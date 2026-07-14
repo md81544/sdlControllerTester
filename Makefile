@@ -45,13 +45,6 @@ $(BUILD_DIR_RELEASE)/Makefile:
 	$(CMAKE) -S . -B $(BUILD_DIR_RELEASE) -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DCMAKE_BUILD_TYPE=Release $(CMAKE_FLAGS)
 
 # ---------------------------------------------------------------------------
-# Test (debug build + run)
-# ---------------------------------------------------------------------------
-test: $(BUILD_DIR_DEBUG)/Makefile
-	$(CMAKE) --build $(BUILD_DIR_DEBUG) --target $(APP_NAME)_tests -- -j$(JOBS)
-	@$(BUILD_DIR_DEBUG)/$(APP_NAME)_tests --reporter console || true
-
-# ---------------------------------------------------------------------------
 # Clean
 # ---------------------------------------------------------------------------
 clean:

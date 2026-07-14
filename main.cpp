@@ -208,6 +208,7 @@ void changeStatus(
             status[e.gamepadId].touchpad = value;
             break;
         default:
+            break;
     }
 }
 
@@ -283,7 +284,11 @@ int main()
                 term.messageBox(opts);
             } else {
                 term.printAt(1, 1, "SDL Gamepad Tester");
-                term.printAt(2, 1, "------------------");
+                if (term.utf8Supported()) {
+                    term.printAt(2, 1, "──────────────────");
+                } else {
+                    term.printAt(2, 1, "------------------");
+                }
                 term.printAt(row++, 1, "Gamepad type   :");
                 term.printAt(row++, 1, "Gamepad Id     :");
                 term.printAt(row++, 1, "Left stick  X  :");

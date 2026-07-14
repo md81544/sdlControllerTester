@@ -344,4 +344,4 @@ inline std::optional<int> getKeyPress(bool blocking = true)
     return c;
 }
 
-} // namespace keypress
+} // namespace keyPress

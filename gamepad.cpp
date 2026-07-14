@@ -36,7 +36,6 @@ float joystickCurve(float input, float curve = 6.f, float deadzone = 0.05f)
     return std::clamp(sign * result, -1.f, 1.f);
 }
 
-[[maybe_unused]]
 const char* gamepadTypeToString(SDL_GamepadType type)
 {
     switch (type) {

@@ -245,7 +245,7 @@ ColourRgb Terminal::getFgColour() const
 
 ColourRgb Terminal::getBgColour() const
 {
-    return m_currentFgRgbColour;
+    return m_currentBgRgbColour;
 }
 
 void Terminal::cursorUp(uint8_t n, OutputMode mode)
