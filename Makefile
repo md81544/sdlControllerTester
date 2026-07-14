@@ -3,7 +3,6 @@
 # Usage:
 #   make          -> debug build
 #   make release  -> release build
-#   make test     -> debug build + run tests
 #   make clean    -> remove all build directories and symlink
 
 APP_NAME := sdlControllerTester
